@@ -1,0 +1,1583 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Traductor de espacios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400&family=Inter:wght@400&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f7f2ea;--ink:#2b2730;--soft:rgba(43,39,48,.5);--line:rgba(43,39,48,.16);
+        --serif:'Fraunces',Georgia,serif;--sans:'Inter',system-ui,-apple-system,sans-serif}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  #mark{position:fixed;top:26px;left:30px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--soft);opacity:0;transition:opacity 1.5s ease 1s}
+  body.on #mark{opacity:1}
+
+  #agent{position:fixed;left:0;right:0;bottom:44px;text-align:center;padding:0 28px;font-family:var(--serif);font-style:italic;font-size:16px;line-height:1.4;color:var(--ink);opacity:0;pointer-events:none}
+  #tip{position:fixed;left:0;right:0;bottom:44px;text-align:center;padding:0 28px;font-family:var(--serif);font-style:italic;font-size:15px;line-height:1.45;color:var(--ink);opacity:0;pointer-events:none;max-width:640px;margin:0 auto}
+  #tip small{display:block;font-family:var(--sans,system-ui);font-style:normal;font-size:9px;letter-spacing:.2em;text-transform:uppercase;opacity:.55;margin-bottom:5px}
+  #tip.show{animation:tipmsg 8s ease forwards}
+  @keyframes tipmsg{0%{opacity:0;transform:translateY(4px)}12%{opacity:.7;transform:none}85%{opacity:.7}100%{opacity:0}}
+  #credits{position:fixed;left:28px;bottom:12px;font-size:9px;letter-spacing:.04em;line-height:1.4;color:var(--ink);opacity:.42;max-width:46vw}
+  #credits a{color:inherit;text-decoration:underline;text-decoration-color:rgba(120,110,100,.4)}
+
+  #agent.show{animation:msg 9s ease forwards}
+  @keyframes msg{0%{opacity:0;transform:translateY(6px)}8%{opacity:.95;transform:none}75%{opacity:.95}100%{opacity:.3}}
+
+  #ctrl{position:fixed;right:28px;bottom:24px;display:flex;gap:18px;align-items:center;font-size:12px;color:var(--soft);opacity:0;pointer-events:none;transition:opacity .6s}
+  body.on.active #ctrl{opacity:1;pointer-events:auto}
+  #ctrl button{font:inherit;color:inherit;background:none;border:0;padding:4px 0;cursor:pointer;border-bottom:1px solid transparent}
+  #ctrl button:hover{color:var(--ink);border-color:var(--ink)}
+  #ctrl input{width:64px;accent-color:var(--ink);vertical-align:middle}
+  #lv{display:inline-block;width:48px;height:3px;background:var(--line);border-radius:2px;overflow:hidden;vertical-align:middle;margin-left:6px}
+  #lvb{display:block;height:100%;width:0;background:var(--ink)}
+
+  /* ---------- inicio ---------- */
+  #start{position:fixed;inset:0;z-index:5;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;transition:opacity 1.2s ease,visibility 1.2s}
+  body.on #start{opacity:0;visibility:hidden}
+  #start .t{font-family:var(--serif);font-size:clamp(26px,4.5vw,38px);font-weight:400;letter-spacing:-.01em}
+  #start .t em{font-style:italic}
+  #go{width:92px;height:92px;border-radius:50%;border:0;cursor:pointer;
+      background:radial-gradient(circle at 35% 30%,#f8cbd9,#ec789e);
+      box-shadow:0 0 70px rgba(236,120,158,.4);animation:breathe 4.5s ease-in-out infinite}
+  #go:hover{filter:brightness(1.05)}
+  @keyframes breathe{50%{transform:scale(1.1);box-shadow:0 0 90px rgba(236,120,158,.5)}}
+  #start .h{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--soft)}
+  #start .f{position:absolute;bottom:26px;font-size:11px;color:var(--soft)}
+  #err{position:absolute;bottom:56px;font-size:12px;color:#b3365b;padding:0 24px;text-align:center}
+
+  @media (max-width:700px){
+    #mark{left:20px;top:20px}
+    #agent{bottom:84px;font-size:15px}
+    #tip{bottom:84px;font-size:14px}
+    #ctrl{left:20px;right:20px;bottom:24px;justify-content:space-between}
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="mark">Traductor de espacios</div>
+<div id="agent"></div>
+<div id="tip"></div>
+<div id="credits">Instrumentos: <a href="https://surikov.github.io/webaudiofont/" target="_blank" rel="noopener">WebAudioFont</a> (código GPL-3.0, datos MIT) y soundfont FluidR3 · Proyecto universitario</div>
+<div id="ctrl">
+  <label>nivel <span id="lv"><i id="lvb"></i></span></label>
+  <label>sensibilidad <input id="sens" type="range" min="0.5" max="4" step="0.1" value="1"></label>
+  <button id="pause">pausa</button>
+  <button id="mus">guardar canción</button>
+  <button id="img">imagen</button>
+  <button id="log">registro</button>
+</div>
+
+<div id="start">
+  <div class="t">Traductor de <em>espacios</em></div>
+  <button id="go" aria-label="Escuchar"></button>
+  <div class="h">toca para escuchar</div>
+  <div id="err"></div>
+  <div class="f">no graba audio</div>
+</div>
+
+<script>
+/* =========================================================
+   Traductor de espacios — del lenguaje acústico del lugar al lenguaje de la orquesta
+
+   El micrófono escucha sin parar. De lo que oye se construyen tres cosas que se hablan entre sí:
+   1. CONTEXTO del lugar: energía, densidad, regularidad, contraste y tendencia, en ventanas de 2, 10 y 40 s.
+   2. INTENCIÓN musical: de ese contexto salen decisiones (cuántas capas, tensión, textura, forma),
+      con memoria y variación: el mismo comportamiento del lugar no siempre se interpreta igual.
+   3. COMPOSICIÓN: tonalidad que sale del lugar, acordes que van de tensión a resolución, motivos tomados de
+      lo que suena y desarrollados (inversión, aumentación, secuencia...), y reparto de papeles
+      (armonía, bajo, pulso, melodía, color) entre los instrumentos.
+   Un sonido suelto solo suena si es significativo; si no, cambia el contexto y aporta material.
+   Instrumentos: muestras de WebAudioFont (código GPL-3.0; datos MIT; sonidos FluidR3) si hay internet; si no, sonido sintético.
+   Créditos y licencias: ver README.md, LICENSE y THIRD_PARTY_NOTICES.md.
+
+   El clima y la hora solo afectan el color de la pantalla, nunca el sonido. Clima: ?clima=lat,lon  Otra hora: ?hora=22
+   ========================================================= */
+const PLACE=(()=>{const q=new URLSearchParams(location.search).get('clima');if(!q)return null;const [la,lo]=q.split(',').map(Number);return isFinite(la)&&isFinite(lo)?{name:'tu ubicación',lat:la,lon:lo}:null})();   // clima opcional (solo visual): abre con ?clima=lat,lon
+const T={lowCent:450,midCent:1100,hiCent:2200,topCent:3500,broad:.25,clarVoice:.6,whistleHz:450}; // umbrales de clasificación
+
+const $=id=>document.getElementById(id);
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const COL={pad:[178,160,214],bass:[142,120,196],mar:[236,120,158],str:[242,160,122],strl:[238,196,170],bel:[226,176,52]};
+const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+/* ---------- estado ---------- */
+const S={
+  running:false,paused:false,t0:0,sens:1,now:0,
+  lowN:0,midN:0,highN:0,rmsN:0,rms:0,lowSm:0,midSm:0,highSm:0,hum:100,
+  flat:0,flatHi:0,cent:1000,cls:[],rh:[],
+  fast:0,slow:0,rmsCeil:.006,rmsAvg:0,ceil:{low:-50,mid:-50,high:-60},
+  onsets:[],hits:[],lastOn:0,lastPerc:0,pend:null,rate:0,
+  sil:[],silSum:0,silence:0,silTotal:0,frames:0,
+  vRing:[],vSum:0,voiced:false,vcount:0,voiceT:-9999,kind:'voice',pf:0,pitchBuf:[],lastPr:null,
+  fn:null,fT:0,selfUntil:0,lastSound:0,floorSlow:.01,open:null,calibUntil:0,hiss:false,hissSm:0,acts:[],percUntil:0,floor:.01,bgSpec:null,exv:null,
+  chord:0,agent:'',lastSay:0,ev:[],
+  rain:false,weather:{temp:null,cloud:40,precip:0,code:null,real:false,label:'sin dato'},
+  bg:[247,242,234],ink:[43,39,48],log:[],
+  stats:{tap:0,clap:0,thud:0,voice:0,hiss:0,chords:0,ans:0}
+};
+const SEQ={bpm:90,pulse:0};
+const rings=[],discs=[],bursts=[],dust=[],beads=[],trace=[],notes=[];
+
+/* ---------- hora y clima ---------- */
+const hourNow=()=>{
+  const q=new URLSearchParams(location.search).get('hora');
+  if(q!==null&&!isNaN(+q))return +q;
+  const d=new Date();return d.getHours()+d.getMinutes()/60;
+};
+const clockStr=()=>{
+  const h=hourNow(),hh=Math.floor(h),mm=Math.floor((h-hh)*60);
+  return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+};
+const RAIN=[51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99];
+function wlabel(w){
+  if(w.code===null)return 'sin dato';
+  let t='despejado';
+  if(w.code===1||w.code===2)t='parcialmente nublado';
+  else if(w.code===3)t='nublado';
+  else if(w.code===45||w.code===48)t='niebla';
+  else if(RAIN.includes(w.code))t=w.code>=95?'tormenta':'lluvia';
+  return t+(w.temp!==null?', '+Math.round(w.temp)+' °C':'');
+}
+async function loadWeather(){
+  if(!PLACE)return;   // el clima es opcional y no influye en la música
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${PLACE.lat}&longitude=${PLACE.lon}&current=temperature_2m,precipitation,cloud_cover,weather_code&timezone=auto`);
+    const c=(await r.json()).current;
+    S.weather={temp:c.temperature_2m,cloud:c.cloud_cover,precip:c.precipitation,code:c.weather_code,real:true};
+  }catch(e){
+    if(!S.weather.real)S.weather={temp:null,cloud:40,precip:0,code:null,real:false};
+  }
+  S.weather.label=wlabel(S.weather);
+  applyEnv();
+}
+
+/* ---------- audio: base ---------- */
+let ac,an,tbuf,fbuf,inst,pg,bright,wet,comp,bw,hissG,noiseBuf;
+function impulse(sec){
+  const len=ac.sampleRate*sec,b=ac.createBuffer(2,len,ac.sampleRate);
+  for(let c=0;c<2;c++){const d=b.getChannelData(c);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6)}
+  return b;
+}
+function applyEnv(){ // el timbre y el eco salen del carácter acústico del lugar; la hora y el clima no tocan el sonido
+  S.rain=!!(S.weather&&S.weather.real&&(S.weather.precip>0||RAIN.includes(S.weather.code)));   // solo para el color de la pantalla
+  if(ac){
+    bright.frequency.setTargetAtTime(2400+3600*ID.bright,ac.currentTime,2);          // lugar oscuro -> timbre más cálido
+    wet.gain.setTargetAtTime(.09+.1*ID.cont,ac.currentTime,2);                       // lugar continuo -> un poco más de eco
+  }
+}
+const vt=t=>performance.now()+(t-ac.currentTime)*1000; // tiempo de audio -> tiempo visual
+const yOfF=f=>innerHeight*(.8-.56*clamp(Math.log2(f/80)/Math.log2(1500/80),0,1));
+const mtof=m=>440*Math.pow(2,(m-69)/12);
+
+/* ---------- tonalidad: sale de lo que suena en el lugar ---------- */
+const NAMES=['Do','Do♯','Re','Re♯','Mi','Fa','Fa♯','Sol','Sol♯','La','La♯','Si'];
+const MAJ=[0,2,4,5,7,9,11],MIN=[0,2,3,5,7,8,10];
+const KP_MAJ=[6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+const KP_MIN=[6.33,2.68,3.52,5.38,2.60,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+const K={tonic:0,minor:false,set:false,chroma:new Array(12).fill(0),n:0};
+const mode={n:'sin definir'};
+const CH={root:0};
+const M={cur:[],recent:[],last:0,lastMove:'',busyUntil:0,nextAnswer:0};
+const pc=m=>((Math.round(m)%12)+12)%12;
+const setLabel=()=>{mode.n=NAMES[K.tonic]+(K.minor?' menor':' mayor')};
+const scaleMidi=d=>{const o=Math.floor(d/7),i=((d%7)+7)%7;return 48+K.tonic+12*o+(K.minor?MIN:MAJ)[i]};
+function degFromMidi(m){let best=0,bd=1e9;for(let d=-14;d<=28;d++){const x=Math.abs(scaleMidi(d)-m);if(x<bd){bd=x;best=d}}return best}
+const foldMidi=(m,lo,hi)=>{while(m<lo)m+=12;while(m>hi)m-=12;return m};
+const chordNotes=r=>[0,2,4].map(i=>foldMidi(scaleMidi(r+i),55,79)); // tríada sobre el grado r
+const PENTA=()=>K.minor?[0,2,3,4,6]:[0,1,2,4,5];   // pentatónica: ninguna combinación de sus notas suena mal
+function snapPenta(d){let best=d,bd=1e9;const set=PENTA();for(let x=d-3;x<=d+3;x++){if(set.includes(((x%7)+7)%7)){const dd=Math.abs(x-d);if(dd<bd){bd=dd;best=x}}}return best}
+function kindFor(ce,tail){
+  if(ce<T.lowCent)return 'thud';        // muy grave -> timbal
+  if(ce<T.midCent)return 'tap';         // seco grave-medio -> pizzicato
+  if(ce<T.hiCent)return 'clap';         // medio -> caja
+  if(ce<T.topCent)return 'snare';       // agudo -> caja
+  return tail>.5?'crash':'hat';         // muy agudo -> platillo / shaker
+}
+const addChroma=(m,w)=>{K.chroma[pc(m)]+=w;K.n+=w};
+function ensureKey(m,ce){ // el primer sonido fija la tónica; los sonidos graves/oscuros -> menor, brillantes -> mayor
+  if(K.set)return;
+  K.set=true;K.tonic=pc(m);K.minor=ce<1200;setLabel();
+  droneTo(K.tonic,5);
+}
+function pearson(a,b){
+  const n=a.length;let ma=0,mb=0;for(let i=0;i<n;i++){ma+=a[i];mb+=b[i]}ma/=n;mb/=n;
+  let c=0,va=0,vb=0;for(let i=0;i<n;i++){const x=a[i]-ma,y=b[i]-mb;c+=x*y;va+=x*x;vb+=y*y}
+  return va>0&&vb>0?c/Math.sqrt(va*vb):0;
+}
+const keyScore=(r,mn)=>pearson(Array.from({length:12},(_,i)=>K.chroma[(i+r)%12]),mn?KP_MIN:KP_MAJ);
+function updateKey(){ // cada segundo: ¿qué tonalidad encaja mejor con las notas que han sonado?
+  for(let i=0;i<12;i++)K.chroma[i]*=.97;
+  if(!K.set||K.n<6)return;
+  let best=-2,bt=K.tonic,bm=K.minor;
+  for(let r=0;r<12;r++)for(const mn of [false,true]){const c=keyScore(r,mn);if(c>best){best=c;bt=r;bm=mn}}
+  if((bt!==K.tonic||bm!==K.minor)&&best>keyScore(K.tonic,K.minor)+.12){
+    K.tonic=bt;K.minor=bm;setLabel();say('El lugar parece estar en '+mode.n+'. Cambio la armonía.');
+    droneTo(K.tonic,5);
+  }
+}
+function bestChord(now){ // el acorde que mejor abraza las notas de los últimos segundos
+  const rec=M.recent.filter(e=>now-e.t<3500);if(!rec.length)return CH.root;
+  let best=CH.root,bs=-1;
+  for(const r of [0,3,4,5]){
+    let sc=0;
+    rec.forEach(e=>{const rel=((((e.d%7)+7)%7)-r+7)%7;if(rel===0)sc+=1.2*e.w;else if(rel===2||rel===4)sc+=e.w});
+    sc+=[.5,.1,.1,.35,.4,.25,0][r];
+    if(r===CH.root)sc+=.35;
+    if(sc>bs){bs=sc;best=r}
+  }
+  return best;
+}
+function noise(t,o){
+  const s=ac.createBufferSource();s.buffer=noiseBuf;s.loop=true;
+  const fl=ac.createBiquadFilter();fl.type=o.type||'bandpass';fl.frequency.value=o.f||3000;fl.Q.value=o.q||1;
+  const g=ac.createGain(),att=o.att||.002,len=o.len||.1;
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(o.vel||.3,t+att);g.gain.exponentialRampToValueAtTime(.0001,t+len);
+  s.connect(fl);fl.connect(g);g.connect(inst);s.start(t,Math.random()*.5);s.stop(t+len+.05);
+}
+function oscs(t,list,len,out,peak,att,tail){ // varios osciladores -> una envolvente
+  const g=ac.createGain();
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+att);g.gain.setTargetAtTime(0,t+len,tail);
+  list.forEach(([ty,f,a,det])=>{
+    const o=ac.createOscillator(),gg=ac.createGain();
+    o.type=ty;o.frequency.value=f;if(det)o.detune.value=det;gg.gain.value=a;
+    o.connect(gg);gg.connect(out||g);o.start(t);o.stop(t+len+tail*6+.1);
+  });
+  return g;
+}
+function snareHit(t,vel){
+  noise(t,{type:'bandpass',f:1900,q:.8,len:.16,vel:vel*.35});
+  oscs(t,[['sine',190,1]],.04,null,vel*.15,.002,.03);
+  notes.push({t:vt(t),y:0,k:'snare',len:.2,v:vel});
+}
+function hatHit(t,vel,open){
+  noise(t,{type:'highpass',f:7500,q:.5,len:open?.28:.035,vel:vel*.16});
+  notes.push({t:vt(t),y:0,k:'hat',len:.1,v:vel});
+}
+function shakeHit(t,vel){
+  noise(t,{type:'bandpass',f:6000,q:.7,att:.012,len:.07,vel:vel*.1});
+  notes.push({t:vt(t),y:0,k:'shk',len:.1,v:vel});
+}
+
+/* ---------- instrumentos de orquesta (sintetizados) ---------- */
+function osc(type,f,t,stop,out,det,amp){
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.type=type;o.frequency.value=f;if(det)o.detune.value=det;g.gain.value=amp==null?1:amp;
+  o.connect(g);g.connect(out);o.start(t);o.stop(stop);return o;
+}
+function adsr(g,t,a,peak,hold,rel){ // sube, sostiene y cae
+  g.gain.cancelScheduledValues(t);
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(peak,t+a);
+  g.gain.setValueAtTime(peak,t+Math.max(a,hold));
+  g.gain.setTargetAtTime(0,t+Math.max(a,hold),rel/3);
+}
+const vis=(t,m,k,len,v,r)=>notes.push({t:vt(t),y:yOfF(mtof(m)),k,len,v,r});
+function strings(m,vel,t,dur,o={}){ // cuerdas: varias sierras desafinadas con vibrato
+  const f=mtof(m),att=o.att!=null?o.att:.12,rel=o.rel!=null?o.rel:.25,end=t+dur+rel*2+.1;
+  const g=ac.createGain(),lp=ac.createBiquadFilter();
+  lp.type='lowpass';lp.frequency.value=o.lpf||Math.min(f*5,3800);lp.Q.value=.5;
+  const lfo=ac.createOscillator(),lg=ac.createGain();
+  lfo.frequency.value=5.3;lg.gain.setValueAtTime(0,t);lg.gain.linearRampToValueAtTime(o.vib!=null?o.vib:7,t+Math.max(.25,att*2));
+  lfo.connect(lg);lfo.start(t);lfo.stop(end);
+  [-9,0,9].forEach(d=>{const x=osc('sawtooth',f,t,end,lp,d,.34);lg.connect(x.detune)});
+  lp.connect(g);g.connect(inst);adsr(g,t,att,vel*(o.gain||.12),dur,rel);
+}
+const cello=(m,vel,t,dur)=>strings(m,vel,t,dur,{att:.1,lpf:1000,gain:.15,vib:5});
+function flute(m,vel,t,dur){
+  const f=mtof(m),end=t+dur+.5,g=ac.createGain();
+  const lfo=ac.createOscillator(),lg=ac.createGain();
+  lfo.frequency.value=5.2;lg.gain.setValueAtTime(0,t);lg.gain.linearRampToValueAtTime(f*.007,t+.2);
+  lfo.connect(lg);lfo.start(t);lfo.stop(end);
+  [[1,1],[2,.16],[3,.05]].forEach(([k,a])=>{const x=osc('sine',f*k,t,end,g,0,a);lg.connect(x.frequency)});
+  noise(t,{type:'bandpass',f:f*2.5,q:3,att:.04,len:Math.min(dur,.35),vel:vel*.035});
+  g.connect(inst);adsr(g,t,.06,vel*.22,dur,.15);
+}
+let clarWave;
+function clarinet(m,vel,t,dur){ // armónicos impares: sonido hueco de clarinete
+  const f=mtof(m),end=t+dur+.5,g=ac.createGain(),lp=ac.createBiquadFilter();
+  if(!clarWave){const n=10,re=new Float32Array(n),im=new Float32Array(n);for(let k=1;k<n;k+=2)im[k]=1/k;clarWave=ac.createPeriodicWave(re,im)}
+  lp.type='lowpass';lp.frequency.value=Math.min(f*6,3200);
+  const o=ac.createOscillator();o.setPeriodicWave(clarWave);o.frequency.value=f;o.connect(lp);o.start(t);o.stop(end);
+  lp.connect(g);g.connect(inst);adsr(g,t,.05,vel*.18,dur,.12);
+}
+function horn(m,vel,t,dur){ // el filtro se abre al atacar: sonido redondo de corno
+  const f=mtof(m),end=t+dur+.6,g=ac.createGain(),lp=ac.createBiquadFilter();
+  lp.type='lowpass';lp.Q.value=1;
+  lp.frequency.setValueAtTime(f*1.5,t);lp.frequency.linearRampToValueAtTime(Math.min(f*5,2600),t+.18);
+  osc('sawtooth',f,t,end,lp,-4,.5);osc('sawtooth',f,t,end,lp,4,.5);osc('sine',f,t,end,lp,0,.6);
+  lp.connect(g);g.connect(inst);adsr(g,t,.1,vel*.17,dur,.25);
+}
+function timpani(m,vel,t){
+  const f=mtof(m),g=ac.createGain(),g2=ac.createGain(),o=ac.createOscillator();
+  o.type='sine';o.frequency.setValueAtTime(f*1.35,t);o.frequency.exponentialRampToValueAtTime(f,t+.09);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vel*.75,t+.004);g.gain.exponentialRampToValueAtTime(.0001,t+.9);
+  o.connect(g);o.start(t);o.stop(t+1);g.connect(inst);
+  g2.gain.setValueAtTime(vel*.2,t);g2.gain.exponentialRampToValueAtTime(.0001,t+.5);
+  osc('sine',f*1.5,t,t+.6,g2);g2.connect(inst);
+  noise(t,{type:'lowpass',f:700,len:.04,vel:vel*.3});
+  SEQ.pulse=1;notes.push({t:vt(t),y:0,k:'kick',len:.3,v:vel});
+}
+function pizz(m,vel,t,low){ // cuerda pellizcada
+  const f=mtof(m),g=ac.createGain(),lp=ac.createBiquadFilter();
+  lp.type='lowpass';lp.frequency.setValueAtTime(Math.min(f*7,5000),t);lp.frequency.exponentialRampToValueAtTime(Math.max(f*1.2,250),t+.28);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vel*.34,t+.004);g.gain.exponentialRampToValueAtTime(.0001,t+(low?.6:.42));
+  osc('triangle',f,t,t+.7,lp,0,1);osc('sawtooth',f,t,t+.7,lp,3,.25);
+  lp.connect(g);g.connect(inst);notes.push({t:vt(t),y:yOfF(f),k:'arp',len:.3,v:vel});
+}
+function cymbal(vel){ // platillo suspendido
+  const t=ac.currentTime;
+  noise(t,{type:'highpass',f:5000,q:.5,att:.01,len:.9,vel:vel*.22});
+  hatHit(t,vel*.7,true);
+}
+function stab(t,vel){ // acorde corto de cuerdas, sobre el acorde que siguen tus notas
+  const ns=chordNotes(CH.root);
+  ns.forEach(m=>strings(m,vel,t,.12,{att:.012,rel:.12,gain:.11}));
+  vis(t,ns[2],'str',.3,vel);
+}
+function playVoice(m,vel,t,dur){ // el registro decide el instrumento
+  if(m<57)cello(m,vel,t,dur);
+  else if(m<72){if(vel>.7)horn(m,vel,t,dur);else clarinet(m,vel,t,dur)}
+  else flute(m,vel,t,dur);
+  vis(t,m,m<57?'bass':'vib',dur,vel);
+}
+const instName=(m,vel)=>m<57?'chelo':m<72?(vel>.7?'corno':'clarinete'):'flauta';
+
+/* ---------- orquesta: muestras reales (WebAudioFont) con respaldo sintético ---------- */
+const WAF={player:null,preset:{},loading:{},state:'sin cargar'};
+const ORCH={violin:'0400',ens:'0480',cello:'0420',bass:'0430',pizz:'0450',harp:'0460',timp:'0470',flute:'0730',clar:'0710',horn:'0600'};
+const GAINK={violin:.85,ens:.6,cello:.9,bass:1,pizz:1,harp:.9,timp:1,flute:.9,clar:.9,horn:.8};
+const RANGE={violin:[55,96],ens:[48,84],cello:[36,69],bass:[28,52],pizz:[48,84],harp:[43,92],timp:[36,53],flute:[67,96],clar:[55,88],horn:[41,77]};
+const NOMBRE={violin:'violín',ens:'cuerdas',cello:'chelo',bass:'contrabajo',pizz:'pizzicato',harp:'arpa',timp:'timbal',flute:'flauta',clar:'clarinete',horn:'corno'};
+const WAF_BASE='https://surikov.github.io/webaudiofontdata/sound/';
+const wafName=k=>'_tone_'+ORCH[k]+'_FluidR3_GM_sf2_file';
+function wafCheck(){
+  const n=Object.keys(WAF.preset).length,t=Object.keys(ORCH).length;
+  WAF.state=n+'/'+t;
+  if(n===t)say('La orquesta está lista: '+t+' instrumentos cargados.');
+}
+function wafLoadOne(k){
+  if(WAF.loading[k]||!WAF.player)return;
+  WAF.loading[k]=true;
+  const name=wafName(k);
+  let done=false;
+  const ready=()=>{if(done)return;const p=window[name];if(p&&p.zones&&p.zones.length){done=true;WAF.preset[k]=p;wafCheck()}};
+  try{
+    WAF.player.loader.startLoad(ac,WAF_BASE+ORCH[k]+'_FluidR3_GM_sf2_file.js',name);
+    if(WAF.player.loader.waitLoad)WAF.player.loader.waitLoad(ready);        // forma documentada por WebAudioFont
+  }catch(e){WAF.loading[k]=false;return}
+  let tries=0;                                                             // respaldo: revisar nosotros mismos si ya decodificó
+  const poll=setInterval(()=>{
+    tries++;const p=window[name];
+    if(p&&p.zones&&p.zones.length&&p.zones.every(z=>z.buffer))ready();
+    if(done||tries>240)clearInterval(poll);                                // ~1 min sin cargar: ese instrumento queda sintético
+  },250);
+}
+function wafInit(){
+  if(!window.WebAudioFontPlayer||WAF.player)return;
+  WAF.player=new window.WebAudioFontPlayer();WAF.state='cargando';
+  ['ens','pizz','cello','flute','timp'].forEach(wafLoadOne);                            // primero lo básico
+  setTimeout(()=>['violin','bass','harp','clar','horn'].forEach(wafLoadOne),3000);      // luego el resto
+}
+function wafScript(){
+  if(window.WebAudioFontPlayer){wafInit();return}
+  const sc=document.createElement('script');
+  sc.src='https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js';
+  sc.onload=wafInit;
+  sc.onerror=()=>{WAF.state='sin conexión';say('Sin conexión: suenan los instrumentos sintéticos.',true)};
+  document.head.appendChild(sc);
+}
+function wafPlay(k,m,t,dur,vel){
+  const p=WAF.preset[k];if(!p||!WAF.player)return false;
+  try{WAF.player.queueWaveTable(ac,inst,p,t,Math.round(m),Math.max(.1,dur),clamp(vel*GAINK[k],0,1));return true}catch(e){return false}
+}
+const SYN={
+  violin:(m,v,t,d)=>strings(m,v,t,d,{att:.08}),
+  ens:(m,v,t,d)=>strings(m,v*.8,t,d,{att:.35,gain:.09}),
+  cello:(m,v,t,d)=>cello(m,v,t,d),
+  bass:(m,v,t,d)=>strings(m,v,t,d,{att:.1,lpf:600,gain:.16}),
+  pizz:(m,v,t,d)=>pizz(m,v,t,m<45),
+  harp:(m,v,t,d)=>pizz(m,v*.9,t,false),
+  timp:(m,v,t,d)=>timpani(m,v,t),
+  flute:(m,v,t,d)=>flute(m,v,t,d),
+  clar:(m,v,t,d)=>clarinet(m,v,t,d),
+  horn:(m,v,t,d)=>horn(m,v,t,d)
+};
+const VISK={violin:'str',ens:'str',cello:'bass',bass:'bass',pizz:'arp',harp:'vib',timp:'kick',flute:'vib',clar:'vib',horn:'vib'};
+const fold=(m,k)=>foldMidi(m,RANGE[k][0],RANGE[k][1]);
+function orchNote(k,m,t,dur,vel,role){ // toca una nota con muestras reales si ya cargaron; si no, con el sonido sintético
+  vel=clamp(vel,.05,1);
+  const ok=wafPlay(k,m,t,dur,vel);
+  if(!ok)SYN[k](m,vel,t,dur);
+  if(ok||!(k==='pizz'||k==='harp'||k==='timp'))vis(t,m,VISK[k],dur,vel,role);
+  else if(role&&notes.length)notes[notes.length-1].r=role;      // el papel (armonía, bajo, pulso...) colorea la nota en pantalla
+}
+
+/* ---------- base sostenida: la nota donde nace la música; nunca hay silencio total ---------- */
+const DR={pc:null,cur:null,since:0};
+function droneBuild(pc,fadeIn){ // tónica + quinta + octavas (sin tercera: sirve para modo mayor y menor), con un filtro suave
+  const t=ac.currentTime,g=ac.createGain(),lp=ac.createBiquadFilter(),oscs=[];
+  lp.type='lowpass';lp.frequency.value=700;lp.Q.value=.4;
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.09,t+fadeIn);
+  [[36+pc,.35,'sine'],[36+pc,.12,'triangle'],[43+pc,.22,'sine'],[48+pc,.18,'sine'],[55+pc,.07,'sine']].forEach(([m,a,ty],i)=>{
+    const o=ac.createOscillator(),og=ac.createGain();
+    o.type=ty;o.frequency.value=mtof(m);o.detune.value=i%2?4:-4;og.gain.value=a;
+    o.connect(og);og.connect(lp);o.start(t);oscs.push(o);
+  });
+  const lfo=ac.createOscillator(),lg=ac.createGain();                          // respira muy despacio
+  lfo.frequency.value=.07;lg.gain.value=.012;lfo.connect(lg);lg.connect(g.gain);lfo.start(t);oscs.push(lfo);
+  lp.connect(g);g.connect(bright);
+  return {g,oscs,pc};
+}
+function droneTo(pc,fade){ // cambia de nota sin cortes: la base nueva entra mientras la vieja se desvanece
+  if(!ac||!bright||DR.pc===pc)return;
+  const old=DR.cur,t=ac.currentTime;
+  DR.cur=droneBuild(pc,fade);DR.pc=pc;DR.since=performance.now();
+  S.calibUntil=performance.now()+fade*1000+3000;
+  if(old){
+    old.g.gain.cancelScheduledValues(t);old.g.gain.setValueAtTime(old.g.gain.value,t);old.g.gain.linearRampToValueAtTime(0,t+fade);
+    old.oscs.forEach(o=>{try{o.stop(t+fade+.2)}catch(e){}});
+  }
+}
+
+/* ---------- variedad con semilla: un mismo tipo de lugar tiende a decidir parecido; otro lugar, distinto ---------- */
+let RNG=1;
+function seedRng(x){RNG=(Math.floor(x)>>>0)||1}
+function rng(){RNG=(RNG+0x6D2B79F5)|0;let t=RNG;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296}
+function wpick(opts,w){let sum=0;w.forEach(x=>sum+=x);let r=rng()*sum;for(let i=0;i<opts.length;i++){r-=w[i];if(r<=0)return opts[i]}return opts[opts.length-1]}
+function choose(opts,key){const last=FORM.last[key];const v=wpick(opts,opts.map(o=>o===last?.25:1));FORM.last[key]=v;return v}
+const median=a=>a.length?[...a].sort((x,y)=>x-y)[a.length>>1]:0;
+const hash=(...a)=>{let h=2166136261;for(const x of a){h^=Math.round(x*1000)|0;h=Math.imul(h,16777619)}return h>>>0};
+function remember(now,d,vel,m){ // memoria corta de lo que acaba de pasar: alimenta frases, motivos y acordes
+  M.cur.push({t:now,d,vel,midi:m});if(M.cur.length>40)M.cur.shift();
+  M.recent.push({t:now,d,w:vel});if(M.recent.length>40)M.recent.shift();
+  M.last=now;S.lastSound=now;
+}
+
+/* ---------- memoria del lugar: tipos de sonido, repeticiones y relaciones (sin límite fijo de categorías) ---------- */
+const SND=[],CHAIN={};
+let SNDID=0,lastType=null,lastTypeT=0;
+const typeMidi=ty=>clamp(40+10.2*(ty.f-Math.log2(150)),38,90);                 // brillo del tipo -> altura estable
+function typeDeg(ty){if(ty.deg==null)ty.deg=snapPenta(degFromMidi(typeMidi(ty)));return ty.deg}
+const typeImp=(ty,now)=>clamp(Math.log2(1+ty.n)/3,0,1)*(.4+.6*ty.reg)*Math.exp(-(now-ty.last)/40000);  // un sonido aislado pesa poco; uno que se repite, mucho
+function sndDist(ty,f,b,tonal){return Math.abs(f-ty.f)+1.5*Math.abs(b-ty.b)+(ty.tonal!==tonal?.5:0)}
+function memorize(now,ce,broad,tonal,vel){ // ¿acústicamente parecido a algo ya oído? se une; si no, tipo nuevo
+  const f=Math.log2(Math.max(ce,100)),tn=tonal?1:0;
+  let best=null,bd=1e9;
+  for(const ty of SND){const d=sndDist(ty,f,broad,tn);if(d<bd){bd=d;best=ty}}
+  let ty;
+  if(best&&bd<.9){
+    ty=best;const a=Math.max(.15,1/(ty.n+1));
+    ty.f+=(f-ty.f)*a;ty.b+=(broad-ty.b)*a;ty.vel+=(vel-ty.vel)*a;
+    ty.iois.push(now-ty.last);if(ty.iois.length>6)ty.iois.shift();
+    ty.n++;ty.last=now;
+  }else{
+    ty={id:++SNDID,f,b:broad,tonal:tn,vel,n:1,first:now,last:now,iois:[],dur:null,deg:null,per:0,reg:0,flash:0,said:false,pat:new Array(16).fill(null)};
+    SND.push(ty);
+  }
+  if(ty.iois.length>=3){                                                          // ¿se repite con regularidad?
+    const m=median(ty.iois),ok=ty.iois.filter(x=>Math.abs(x-m)/m<.22).length;
+    ty.reg=ok/ty.iois.length;ty.per=(ty.reg>=.6&&m>150&&m<3000)?m:0;
+    if(!ty.said&&ty.n>=4&&ty.reg>=.6){ty.said=true;say('Un sonido se repite con regularidad: lo guardo como parte del ritmo del lugar.')}
+  }
+  if(lastType&&lastType!==ty&&now-lastTypeT<1800){                                // relación: qué sonido suele seguir a cuál
+    const key=lastType.id+'>'+ty.id,c=CHAIN[key]||(CHAIN[key]={a:lastType.id,b:ty.id,n:0,gap:0});
+    c.n++;c.gap+=((now-lastTypeT)-c.gap)/c.n;
+  }
+  lastType=ty;lastTypeT=now;ty.flash=1;
+  return ty;
+}
+function eventClass(ty){return ty.n>=3&&(ty.reg>=.5||(ty.iois.length&&ty.iois[ty.iois.length-1]<6000))?'recurrente':'aislado'}
+function closeEvent(ev){ // el acontecimiento terminó: ya se sabe cuánto duró
+  const ty=SND.find(x=>x.id===ev.ty);
+  if(ty)ty.dur=ty.dur==null?ev.dur:ty.dur+(ev.dur-ty.dur)*.3;
+  if(ev.dur>1500)ev.cls='continuo';
+}
+function forgetMemory(now){ // lo que no se repite se olvida
+  for(let i=SND.length-1;i>=0;i--){const ty=SND[i],idle=now-ty.last;if((ty.n<3&&idle>45000)||idle>180000)SND.splice(i,1)}
+  while(SND.length>40){let w=0;SND.forEach((t,i)=>{if(typeImp(t,now)<typeImp(SND[w],now))w=i});SND.splice(w,1)}
+  for(const k in CHAIN){const c=CHAIN[k];if(!SND.some(t=>t.id===c.a)||!SND.some(t=>t.id===c.b))delete CHAIN[k]}
+  if(lastType&&!SND.includes(lastType))lastType=null;
+}
+function recordHit(ty,vel,tAudio){ // el golpe queda anotado en el compás; si cae otra vez en el mismo paso, gana confianza
+  if(!PIECE.on)return;
+  const n=Math.round((tAudio-PIECE.t0)/PIECE.step),s2=((n%16)+16)%16,bar=Math.floor(n/16);
+  PIECE.cur.add(s2);
+  let p=ty.pat[s2];
+  if(!p)for(const q of [(s2+15)%16,(s2+1)%16]){const c=ty.pat[q];if(c&&c.conf>=2){p=c;break}}
+  if(p){p.conf=Math.min(6,p.conf+1);p.vel=Math.max(p.vel*.7,vel);p.bar=bar}
+  else ty.pat[s2]={vel,bar,conf:1};
+}
+const hasCell=()=>SND.some(ty=>ty.pat.some(p=>p&&p.conf>=2));
+
+/* ---------- 1. contexto del lugar: ventanas de tiempo y memoria ---------- */
+const SP={e1:0,e2:0,e3:0,dens:0,avgVel:.5,reg:0,bright:.5,contrast:0,trend:0,cont:0,contT:0,patRec:0,recShare:0,hist:[],tt:0,tf:0,ti:0,interrupt:0,lastEnergyAct:0};
+const EV=[];                 // acontecimientos recientes (40 s)
+const ID={bright:.5,reg:0,dens:0,dur:.3,tonal:0,cont:0,seed:1};   // identidad acústica del lugar (media lenta)
+function updateContext(now){
+  while(EV.length&&now-EV[0].t>40000)EV.shift();
+  SP.dens=EV.filter(e=>now-e.t<4000).length/4;                                 // sonidos por segundo
+  const l8=EV.slice(-8);
+  SP.avgVel=l8.length?l8.reduce((a,e)=>a+e.vel,0)/l8.length:.5;
+  const lvl=clamp(Math.log2(Math.max(S.rms,1e-5)/(S.floor*3+1e-5))/4,0,1);     // cuánto sobresale del ruido del cuarto
+  const act=Math.max(lvl,clamp(SP.dens/2.5,0,1)*(.5+.5*SP.avgVel));            // energía: volumen continuo o cantidad de sonidos
+  SP.e1+=(act-SP.e1)*.04;SP.e2+=(act-SP.e2)*.01;SP.e3+=(act-SP.e3)*.0025;      // ~2 s, ~10 s, ~40 s
+  // sonido continuo: sostenido por encima del ruido MUY lento, sin golpes nuevos (no cuenta mientras suena la orquesta)
+  const cl=clamp(Math.log2(Math.max(S.rms,1e-5)/(S.floorSlow*2+1e-5))/3,0,1);
+  if(now>S.selfUntil&&now-S.t0>10000&&now-(EV.length?EV[EV.length-1].t:0)>2500&&!S.voiced){SP.cont+=(((cl>.2)?cl:0)-SP.cont)*.03;SP.contT=now}   // medición válida: no suena la orquesta
+  else if(now-SP.contT>20000)SP.cont*=.97;                                      // mientras suena la orquesta no se puede medir: se mantiene lo último ~20 s
+  if(l8.length>=4){
+    const io=[];for(let i=1;i<l8.length;i++)io.push(l8[i].t-l8[i-1].t);
+    const mean=io.reduce((a,b)=>a+b,0)/io.length,sd=Math.sqrt(io.reduce((a,b)=>a+(b-mean)*(b-mean),0)/io.length);
+    SP.reg=clamp(1-1.5*sd/Math.max(mean,1),0,1);                               // regularidad del ritmo
+  }else SP.reg=0;
+  const r4=EV.filter(e=>now-e.t<8000);
+  SP.recShare=r4.length?r4.filter(e=>e.cls==='recurrente').length/r4.length:0; // cuánto de lo que suena ya es recurrente
+  SP.bright=l8.length?clamp((l8.reduce((a,e)=>a+Math.log2(Math.max(e.ce,100)),0)/l8.length-7)/5,0,1):.5;
+  SP.contrast=clamp(SP.e1-SP.e2+(now-SP.interrupt<3000?.3:0),-1,1);            // actividad súbita frente a lo habitual
+  if(now-SP.tt>1000){SP.hist.push(SP.e1);if(SP.hist.length>9)SP.hist.shift();SP.trend=SP.hist.length>=8?SP.e1-SP.hist[0]:0;SP.tt=now}
+}
+function updateIdentity(now){ // identidad: lo que el lugar ha mostrado, ponderado por lo que se repite
+  let ws=0,b=0,du=0,to=0;
+  for(const ty of SND){const w=typeImp(ty,now);if(w<=0)continue;ws+=w;b+=w*clamp((ty.f-7)/5,0,1);du+=w*(ty.dur==null?.3:clamp(Math.log2(Math.max(ty.dur,60)/60)/6,0,1));to+=w*ty.tonal}
+  const a=.1;
+  if(ws>.05){ID.bright+=(b/ws-ID.bright)*a;ID.dur+=(du/ws-ID.dur)*a;ID.tonal+=(to/ws-ID.tonal)*a}
+  ID.reg+=(SP.reg-ID.reg)*a;ID.dens+=(SP.dens-ID.dens)*a;ID.cont+=(SP.cont-ID.cont)*a;
+  ID.seed=hash(Math.round(ID.bright*8),Math.round(ID.reg*8),Math.round(ID.dens*2),Math.round(ID.dur*6),K.tonic);
+}
+function affinity(k){ // qué instrumentos pide el carácter del lugar (no el azar)
+  const b=ID.bright,d=ID.dur,t=ID.tonal,c=ID.cont,r=ID.reg;
+  const A={violin:.4+.5*b+.3*t,ens:.4+.5*d+.4*c,cello:.4+.6*(1-b)+.2*d,bass:.4+.6*(1-b),pizz:.4+.6*(1-d)+.2*r,
+           harp:.4+.5*b+.3*(1-d),timp:.3+.5*r+.3*(1-b),flute:.3+.6*b+.3*t,clar:.5+.2*t+.2*(1-Math.abs(b-.5)*2),horn:.3+.5*(1-b)+.4*d};
+  return Math.max(.1,A[k]);
+}
+
+/* ---------- 2. intención musical: del contexto a decisiones ---------- */
+const INT={layers:1,tension:.2,dir:0,dyn:.55,tex:'sostenida',lastChange:0};
+const FORM={bar:0,pb:0,phrase:0,sec:'intro',secPh:0,secLen:1,nsec:0,plan:[0,0,3,4],lastPlan:null,lastMot:null,melMot:null,melT:0,secFlash:0,last:{},prev:[]};
+const ROLE={order:['bajo','pulso','mel','color'],inst:{}};
+const MOT=[];                // banco de motivos: nacen de lo que se repite y evolucionan
+const ARM={prev:null};
+const ROLE_MSG={bajo:'Entra el bajo.',pulso:'El ritmo repetido del lugar pasa a la orquesta.',mel:'La melodía desarrolla un motivo del lugar.',color:'Aparece un color nuevo en la orquesta.'};
+const SEC_MSG={reposo:'El lugar se calma. La música baja y busca el reposo.',climax:'Mucha energía. Llega el momento más intenso.',contraste:'Cambia el color: la orquesta se reordena.',desarrollo:'La música desarrolla lo que escucha.'};
+function updateIntent(){
+  const want=clamp(Math.round(1+3.2*Math.max(SP.e2,.6*SP.e1)+1.6*clamp(SP.dens/3,0,1)+.6*SP.cont),1,5);
+  if(FORM.bar-INT.lastChange>=2){                                               // como mucho una capa cada 2 compases
+    if(want>INT.layers){INT.layers++;INT.lastChange=FORM.bar}
+    else if(want<INT.layers){INT.layers--;INT.lastChange=FORM.bar}
+  }
+  const tgt=clamp(.25+.9*Math.max(0,SP.contrast)+.6*Math.max(0,SP.trend)+.25*(1-SP.reg)*(SP.dens>.5?1:0)-.35*Math.max(0,-SP.trend),0,1);
+  INT.tension+=(tgt-INT.tension)*.5;                                            // la tensión sube con contraste e irregularidad
+  INT.dir=SP.trend>.06?1:SP.trend<-.06?-1:0;
+  INT.dyn=clamp(.45+.5*SP.e1+.2*SP.contrast,.35,1);
+  INT.tex=SP.cont>.22&&SP.dens<.8?'continua':((SP.reg>.6||SP.patRec>.6)&&SP.dens>.8)?'pulso':SP.dens<.5?'sostenida':'movimiento';
+}
+function roleOrder(){ // qué papel pide primero este lugar: no es un orden fijo ni al azar
+  const sc={bajo:.4+.6*(1-ID.bright),pulso:.3+.8*ID.reg+.2*clamp(ID.dens/3,0,1),mel:.3+.7*ID.tonal+(MOT.length?.2:0),color:.3+.6*ID.cont+.3*ID.bright};
+  return Object.keys(sc).sort((a,b)=>(sc[b]+rng()*.15)-(sc[a]+rng()*.15));
+}
+function orchestrate(partial){ // instrumentos por papel según el carácter del lugar; nunca dos papeles con el mismo
+  const used=new Set(partial?[ROLE.inst.arm,ROLE.inst.bajo].filter(Boolean):[]);
+  const pk=(role,list)=>{const ok=list.filter(x=>!used.has(x)),L=ok.length?ok:list;
+    const p=wpick(L,L.map(x=>affinity(x)*(x===FORM.last['i_'+role]?.4:1)));FORM.last['i_'+role]=p;used.add(p);return p};
+  if(!partial){ROLE.inst.arm=pk('arm',['ens','violin','horn','cello']);ROLE.inst.bajo=pk('bajo',['bass','cello','timp'])}
+  ROLE.inst.pulso=pk('pulso',['pizz','timp','harp']);
+  ROLE.inst.color=pk('color',['harp','flute','clar','horn']);
+  ROLE.inst.mel=null;
+}
+function sectionStep(){ // la forma sale del arco de actividad del lugar; las secciones se miden en frases de 4 compases
+  FORM.secPh++;
+  if(FORM.secPh<FORM.secLen)return;
+  FORM.secPh=0;FORM.nsec++;
+  let next;
+  if((SP.trend<-.08||SP.e1<.1)&&FORM.bar>=8)next='reposo';                      // el reposo llega tras haber desarrollado algo
+  else if(SP.e1>.5&&SP.trend>-.03&&FORM.nsec>=2)next='climax';                  // el clímax se construye: no es lo primero
+  else next=FORM.sec==='intro'?'desarrollo':choose(['desarrollo','contraste'],'sec');
+  if(next===FORM.sec&&(next==='reposo'||next==='climax'))return;
+  FORM.sec=next;FORM.secLen=choose([1,2,2],'len');FORM.secFlash=performance.now();
+  ROLE.order=roleOrder();orchestrate(true);
+  say(SEC_MSG[next]);
+}
+const PLANS_MAJ=[[0,5,3,4],[0,3,4,0],[0,4,5,3],[0,3,0,4]],PLANS_MIN=[[0,5,3,4],[0,3,4,0],[0,2,3,4],[0,3,5,4]];
+function fitScore(r,now){ // qué tanto abraza el acorde r a las notas que acaban de sonar
+  const rec=M.recent.filter(e=>now-e.t<6000);let sc=0,tot=0;
+  rec.forEach(e=>{const rel=((((e.d%7)+7)%7)-r+7)%7;tot+=e.w;if(rel===0||rel===2||rel===4)sc+=e.w});
+  return tot?sc/tot:0;
+}
+function planPhrase(){ // progresión de 4 compases: con tensión cierra abierta (dominante); en calma, cierra en reposo
+  const lib=K.minor?PLANS_MIN:PLANS_MAJ,now=performance.now();
+  const sc=lib.map(p=>{
+    let x=.3;p.forEach(r=>x+=fitScore(r,now)*.25);
+    const open=p[3]===4;
+    x+=INT.tension>.5?(open?.6:0):(open?0:.5);
+    if(FORM.sec==='reposo'&&!open)x+=.8;
+    if(p===FORM.lastPlan)x*=.4;
+    return Math.max(.05,x);
+  });
+  FORM.plan=wpick(lib,sc);FORM.lastPlan=FORM.plan;
+}
+function chordTone(d){ // nota del acorde actual más cercana al grado d
+  const set=[0,2,4].map(i=>(CH.root+i)%7);let best=d,bd=1e9;
+  for(let x=d-3;x<=d+3;x++){if(set.includes(((x%7)+7)%7)){const dd=Math.abs(x-d);if(dd<bd){bd=dd;best=x}}}
+  return best;
+}
+const nearestTonic=d=>Math.round(d/7)*7;
+function voiceChord(r,seventh){ // cada voz se mueve lo menos posible respecto al acorde anterior
+  const base=[0,2,4].concat(seventh?[6]:[]).map(i=>scaleMidi(r+i));
+  const prev=ARM.prev;
+  const out=base.map((m,i)=>{
+    const target=prev&&prev[i]!=null?prev[i]:[55,62,69,74][i];
+    let best=m,bd=1e9;
+    for(let o=-48;o<=48;o+=12){const c=m+o;if(c<50||c>78)continue;const dd=Math.abs(c-target);if(dd<bd){bd=dd;best=c}}
+    return best;
+  });
+  ARM.prev=out;return out;
+}
+
+/* ---------- 3. composición: frases de 4 compases (inicio, desarrollo, resolución) ---------- */
+const PIECE={on:false,ending:false,endBars:0,t0:0,n:0,bpm:90,step:.1667,q:[],rec:[],cur:new Set(),prevSet:new Set()};
+const dvel=x=>clamp(x*(.6+.5*INT.dyn),.05,1);
+function qn(n,k,m,dur,vel,role){PIECE.q.push({n,k,m,dur,vel,role})}
+function composeArm(n0){
+  const k=ROLE.inst.arm,vs=voiceChord(CH.root,CH.seventh),split=INT.tex==='pulso'&&INT.layers>=3&&FORM.pb!==3;
+  const len=FORM.pb===3?12.5:INT.tex==='continua'?17:16.5;                      // se solapan con el compás siguiente: sin huecos (el último respira)
+  vs.forEach(m=>{qn(n0,k,m,split?8:len,dvel(.55),'arm');if(split)qn(n0+8,k,m,8.5,dvel(.45),'arm')});
+}
+function composeBass(n0){
+  const k=ROLE.inst.bajo,r=CH.root,root=fold(scaleMidi(r),k),pb=FORM.pb;
+  qn(n0,k,root,6,dvel(.8),'bajo');
+  if(INT.tex!=='sostenida'||INT.tension>.5||pb===3)qn(n0+8,k,(INT.tension>.6||pb===3)?root:fold(scaleMidi(r+4),k),pb===3?4:6,dvel(.65),'bajo');
+  if(pb===3&&INT.layers>=3)qn(n0+12,k,fold(scaleMidi(-1),k),3,dvel(.55),'bajo');   // nota de paso que lleva al siguiente acorde
+}
+function composePulse(n0,bar){ // el ritmo propio del lugar: solo lo que se repite, sobre notas del acorde
+  const k=ROLE.inst.pulso,items=[];
+  for(const ty of SND)for(let s2=0;s2<16;s2++){const p=ty.pat[s2];if(p&&p.bar!==bar)items.push({ty,s2,p,w:p.vel*(.3+.7*Math.min(1,p.conf/3))})}
+  items.sort((a,c)=>((c.s2%4===0)-(a.s2%4===0))||(c.w-a.w));                    // primero los que caen en tiempo fuerte
+  let n=0;
+  for(const it of items){if(n>=(k==='timp'?4:6))break;if(it.w<.22)continue;qn(n0+it.s2,k,fold(scaleMidi(chordTone(typeDeg(it.ty))),k),2,dvel(it.w*.95),'pulso');n++}
+  items.forEach(({ty,s2,p})=>{p.vel*=.7+.045*p.conf;p.conf=Math.max(0,p.conf-.35);if(p.vel<.15||p.conf<=0)ty.pat[s2]=null});   // lo que no se repite se apaga
+  if(FORM.pb===3&&INT.tension>.55&&k!=='timp'){qn(n0+14,k,fold(scaleMidi(CH.root+2),k),1,dvel(.5),'pulso');qn(n0+15,k,fold(scaleMidi(CH.root+4),k),1,dvel(.55),'pulso')}   // relleno hacia la frase siguiente
+}
+function melInst(mm){
+  const ex=[ROLE.inst.arm,ROLE.inst.bajo,ROLE.inst.pulso,ROLE.inst.color];
+  const list=(mm>=74?['flute','violin']:mm>=62?['clar','violin','horn','flute']:['cello','horn','clar']).filter(x=>!ex.includes(x));
+  const L=list.length?list:['violin'];
+  return wpick(L,L.map(x=>affinity(x)));
+}
+/* motivos: nacen de lo que se repite (ritmo, relaciones entre sonidos, frases) y evolucionan */
+function addMotif(m){
+  m.sig=m.steps.join(',')+'|'+m.degs.join(',');
+  const ex=MOT.find(x=>x.sig===m.sig);
+  if(ex){ex.w=Math.min(1,ex.w+.12);return false}                                 // que reaparezca lo refuerza
+  MOT.push(m);
+  if(MOT.length>6){let w=0;MOT.forEach((x,i)=>{if(x.w<MOT[w].w)w=i});if(MOT[w]===m)MOT.pop();else MOT.splice(w,1)}
+  if(MOT.length===1)say('Encontré un motivo en lo que se repite en el lugar.');
+  return true;
+}
+function buildMotifs(){
+  if(FORM.bar%2)return;
+  const items=[];
+  for(const ty of SND)for(let s2=0;s2<16;s2++){const p=ty.pat[s2];if(p&&p.conf>=2)items.push({s:s2,d:typeDeg(ty),c:p.conf})}
+  items.sort((a,b)=>a.s-b.s||b.c-a.c);
+  const u=[];for(const it of items)if(!u.length||u[u.length-1].s!==it.s)u.push(it);
+  if(u.length>=3){const w=u.slice(0,8);addMotif({steps:w.map(x=>x.s-w[0].s),degs:w.map(x=>x.d),w:clamp(w.reduce((a,x)=>a+x.c,0)/14,.2,1),uses:0,gen:0,src:'ritmo'})}
+  const ch=Object.values(CHAIN).filter(c=>c.n>=3).sort((a,b)=>b.n-a.n)[0];      // relación que se repite: A y luego B
+  if(ch){
+    const A=SND.find(t=>t.id===ch.a),B=SND.find(t=>t.id===ch.b);
+    if(A&&B){
+      const gs=Math.max(1,Math.round(ch.gap/1000/PIECE.step));
+      const nx=Object.values(CHAIN).filter(c=>c.a===ch.b&&c.n>=3).sort((a,b)=>b.n-a.n)[0],C=nx&&SND.find(t=>t.id===nx.b);
+      const steps=[0,gs],degs=[typeDeg(A),typeDeg(B)];
+      if(C&&nx.b!==ch.a){steps.push(gs+Math.max(1,Math.round(nx.gap/1000/PIECE.step)));degs.push(typeDeg(C))}
+      if(steps[steps.length-1]<=14)addMotif({steps,degs,w:clamp(ch.n/10,.2,.9),uses:0,gen:0,src:'relación'});
+    }
+  }
+  MOT.forEach(m=>m.w*=.97);
+}
+function toMotif(ph0){ // una frase del lugar también es material
+  const ph=ph0.slice(-8),n=ph.length,st=PIECE.step;
+  let steps=[0];
+  for(let i=1;i<n;i++)steps.push(steps[i-1]+Math.max(1,Math.round((ph[i].t-ph[i-1].t)/1000/st)));
+  if(steps[n-1]>14){const k=14/steps[n-1];steps=steps.map(x=>Math.round(x*k));for(let i=1;i<n;i++)if(steps[i]<=steps[i-1])steps[i]=steps[i-1]+1}
+  addMotif({steps,degs:ph.map(e=>snapPenta(e.d)),w:.4,uses:0,gen:0,src:'frase'});
+}
+function pickMotif(){return wpick(MOT,MOT.map(m=>(.15+m.w)/(1+.35*m.uses)*(m===FORM.lastMot?.4:1)))}
+function develop(mot,op){ // transformaciones: cada una cambia el motivo sin perder su identidad
+  let D=mot.degs.slice(),St=mot.steps.slice();
+  if(op==='inversion'){const d0=D[0];D=D.map(d=>2*d0-d)}
+  else if(op==='disminucion')St=St.map(x=>Math.round(x/2));
+  else if(op==='aumentacion')St=St.map(x=>x*2);
+  else if(op==='fragmento'||op==='cadencia'){const c=Math.max(2,Math.ceil(D.length/2));D=D.slice(0,c);St=St.slice(0,c)}
+  else if(op==='secuencia')D=D.map(d=>d+1);
+  else if(op==='ascenso')D=D.map(d=>d+2);
+  else if(op==='descenso')D=D.map(d=>d-2);
+  if(op==='cadencia'&&St[St.length-1]>10){const k=10/St[St.length-1];St=St.map(x=>Math.round(x*k))}
+  for(let i=1;i<St.length;i++)if(St[i]<=St[i-1])St[i]=St[i-1]+1;
+  return {D,St};
+}
+function composeMel(n0){ // frase de 4 compases: declaración, eco, desarrollo, cadencia
+  if(!MOT.length)return;
+  const pb=FORM.pb,ci=(FORM.phrase-1)%4;
+  if(pb===1&&INT.layers<4)return;                                               // el segundo compás descansa salvo que haya muchas capas
+  const mot=(pb===0||!FORM.lastMot||!MOT.includes(FORM.lastMot))?pickMotif():FORM.lastMot;
+  mot.uses++;FORM.lastMot=mot;
+  let op;
+  if(pb===0)op=(ci===0||ci===3)?'declaracion':ci===1?(INT.dir<0?'descenso':'secuencia'):(INT.tension>.55?'inversion':'fragmento');
+  else if(pb===1)op='eco';
+  else if(pb===2)op=INT.tension>.6?'disminucion':INT.dir>0?'ascenso':INT.dir<0?'aumentacion':'secuencia';
+  else op='cadencia';
+  const dv=develop(mot,op),raw=dv.D.slice(),rawS=dv.St.slice();
+  let D=dv.D,St=dv.St;
+  const last=D.length-1;
+  D=D.map(snapPenta).map((d,i)=>St[i]%8===0?chordTone(d):d);                    // tiempos fuertes caen en notas del acorde
+  D[last]=(pb===3||FORM.sec==='reposo')?nearestTonic(D[last]):chordTone(D[last]);   // la frase resuelve
+  const up=FORM.sec==='climax'?7:0;
+  if(!ROLE.inst.mel)ROLE.inst.mel=melInst(D.reduce((a,d)=>a+scaleMidi(d),0)/D.length);
+  const k=ROLE.inst.mel,hold=pb===3?4:6;
+  D.forEach((d,i)=>qn(n0+St[i],k,fold(scaleMidi(d+up),k),i<last?Math.max(1,St[i+1]-St[i]):hold,dvel(op==='eco'?.5:.7),'mel'));
+  FORM.melMot={steps:St.slice(),degs:D.slice(),op,src:mot.src,gen:mot.gen};FORM.melT=performance.now();
+  if(!['declaracion','eco','cadencia'].includes(op)&&rng()<.3&&mot.gen<3)addMotif({steps:rawS,degs:raw,w:mot.w*.8,uses:0,gen:mot.gen+1,src:'variación'});   // la variación pasa a la memoria: el motivo evoluciona
+  S.stats.ans++;
+}
+function composeColor(n0){
+  const k=ROLE.inst.color,r=CH.root,pb=FORM.pb;
+  if(pb===3&&INT.tension<.4)return;                                             // respiro al final de la frase
+  const mode=INT.tex==='continua'?'larga':choose(['arpegio','larga'],'colormode');
+  if(mode==='arpegio'){
+    let seq=[0,2,4,7,4,2];if(INT.dir<0)seq=seq.reverse();
+    const sz=INT.tension>.5?2:4;
+    for(let i=0;i*sz<(pb===3?8:16);i++)qn(n0+i*sz,k,fold(scaleMidi(r+seq[i%seq.length]+7),k),sz,dvel(.4),'color');
+  }else qn(n0+Math.floor(rng()*3),k,fold(scaleMidi(r+choose([2,4],'ct')+7),k),14,dvel(.4),'color');
+}
+function activeRoles(){
+  let L=INT.layers;
+  if(FORM.sec==='reposo')L=Math.min(L,2);
+  if(FORM.sec==='climax')L=Math.min(5,L+1);
+  const out=[];
+  for(const r of ['arm',...ROLE.order]){
+    if(out.length>=L)break;
+    if(r==='mel'&&!MOT.length)continue;
+    if(r==='pulso'&&!hasCell())continue;
+    out.push(r);
+  }
+  return out;
+}
+function pruneBar(n0){ // nunca más de 44 notas por compás: lo menos importante se descarta primero
+  const win=PIECE.q.filter(e=>e.n>=n0&&e.n<n0+16);
+  if(win.length<=44)return;
+  const pr={arm:5,bajo:5,mel:4,pulso:3,color:2};
+  win.sort((a,b)=>(pr[b.role]||0)-(pr[a.role]||0));
+  const keep=new Set(win.slice(0,44));
+  PIECE.q=PIECE.q.filter(e=>e.n<n0||e.n>=n0+16||keep.has(e));
+}
+function barRecurrence(){ // ¿el compás que acaba de pasar repite al anterior?
+  const A=PIECE.cur,B=PIECE.prevSet;let inter=0;A.forEach(x=>{if(B.has(x))inter++});
+  const uni=A.size+B.size-inter,j=uni?inter/uni:0;
+  SP.patRec+=(j-SP.patRec)*.5;PIECE.prevSet=A;PIECE.cur=new Set();
+}
+function composeBar(n0,t){
+  const bar=Math.floor(n0/16);
+  if(PIECE.ending){composeEndingBar(n0,t);return}
+  FORM.bar++;FORM.pb=(FORM.bar-1)%4;
+  if(FORM.pb===0){
+    FORM.phrase++;seedRng(ID.seed+FORM.phrase*7919);                           // la semilla sale del carácter del lugar
+    if(FORM.phrase>1){sectionStep();planPhrase()}
+  }
+  barRecurrence();buildMotifs();updateIntent();
+  CH.root=FORM.plan[FORM.pb];CH.seventh=(CH.root===4&&INT.tension>.4)||CH.root===6;
+  if(FORM.sec==='climax'&&FORM.pb===0&&FORM.secPh===0)tutti(t,.8);
+  const roles=activeRoles();
+  roles.forEach(r=>{
+    if(r!=='arm'&&!FORM.prev.includes(r))say(ROLE_MSG[r]);
+    ({arm:composeArm,bajo:composeBass,pulso:composePulse,mel:composeMel,color:composeColor})[r](n0,bar);
+  });
+  pruneBar(n0);
+  FORM.prev=roles;S.stats.chords++;
+}
+
+/* ---------- compás, arranque y final de la pieza ---------- */
+function tempoTarget(){ // el pulso sale del ritmo del lugar; si no hay ritmo claro, de su densidad y regularidad
+  const now=performance.now();S.hits=S.hits.filter(x=>now-x<8000);
+  if(S.hits.length>=3){
+    const io=[];for(let i=1;i<S.hits.length;i++)io.push(S.hits[i]-S.hits[i-1]);
+    const m=median(io),ok=io.filter(x=>Math.abs(x-m)/m<.22).length;
+    if(m>250&&m<1500&&ok/io.length>=.6){let est=60000/m;while(est>135)est/=2;while(est<70)est*=2;return est}
+  }
+  return clamp(64+Math.max(ID.dens,SP.dens)*14+ID.reg*10,66,112);
+}
+function startPiece(now){
+  const recent=S.acts.filter(x=>now-x<5000);
+  updateIdentity(now);
+  PIECE.bpm=tempoTarget();PIECE.step=60/PIECE.bpm/4;SEQ.bpm=PIECE.bpm;
+  PIECE.t0=ac.currentTime-(now-Math.min(...recent))/1000;    // el primer sonido es el primer tiempo
+  PIECE.n=Math.ceil((ac.currentTime-PIECE.t0)/PIECE.step)+1;
+  PIECE.on=true;PIECE.q=[];PIECE.cur=new Set();PIECE.prevSet=new Set();
+  PIECE.ending=false;PIECE.endBars=0;{const t=ac.currentTime;pg.gain.cancelScheduledValues(t);pg.gain.setValueAtTime(1,t)}
+  if(K.n<6){                                                 // sin notas claras: la tonalidad sale del sonido más importante (su altura PROMEDIO, estable)
+    const top=SND.reduce((a,t)=>(!a||typeImp(t,now)>typeImp(a,now))?t:a,null);
+    if(top)K.tonic=pc(typeMidi(top));
+    K.minor=ID.bright<.5;setLabel();                         // y el modo, del brillo del lugar
+  }
+  droneTo(K.tonic,4);                                        // la base se afina a la tonalidad definitiva del lugar
+  ARM.prev=null;CH.root=0;CH.seventh=false;
+  seedRng(ID.seed);
+  Object.assign(FORM,{bar:0,pb:0,phrase:0,sec:'desarrollo',secPh:0,secLen:1,nsec:0,plan:[0,0,3,4],lastPlan:null,lastMot:null,melMot:null,last:{},prev:[],secFlash:performance.now()});
+  Object.assign(INT,{layers:1,tension:.2,dir:0,dyn:.55,tex:'sostenida',lastChange:0});
+  ROLE.order=roleOrder();orchestrate(false);
+  for(const h of PIECE.rec)recordHit(h.ty,h.vel,ac.currentTime-(now-h.t)/1000);
+  say('Hay pulso: '+Math.round(PIECE.bpm)+' por minuto. La orquesta empieza a escuchar el lugar.');
+}
+function scheduleSteps(){
+  const lookEnd=ac.currentTime+.25;
+  while(PIECE.t0+PIECE.n*PIECE.step<lookEnd){
+    const n=PIECE.n,t=PIECE.t0+n*PIECE.step;
+    if(n%16===0)composeBar(n,t);
+    for(const e of PIECE.q)if(e.n===n)orchNote(e.k,e.m,t,e.dur*PIECE.step,e.vel,e.role);
+    PIECE.n++;
+  }
+  PIECE.q=PIECE.q.filter(e=>e.n>=PIECE.n);
+}
+function tutti(t,vel){ // acento de toda la orquesta: interrupciones y clímax
+  orchNote('timp',fold(scaleMidi(CH.root),'timp'),t,1,vel*.9,'pulso');
+  hatHit(t,vel*.6,true);
+  chordNotes(CH.root).forEach(m=>orchNote('pizz',m,t,.3,vel*.45,'pulso'));
+}
+function beginEnding(){ // silencio: no se corta; la música baja, cierra con un acorde de reposo y se funde con la base
+  PIECE.ending=true;PIECE.endBars=0;
+  const t=ac.currentTime;pg.gain.cancelScheduledValues(t);pg.gain.setTargetAtTime(.75,t,1);   // empieza a bajar enseguida
+  say('El lugar se calla. La música baja y vuelve a la base.');
+}
+function cancelEnding(){ // volvió un sonido mientras bajaba: la pieza sigue donde iba
+  PIECE.ending=false;PIECE.endBars=0;
+  const t=ac.currentTime;pg.gain.cancelScheduledValues(t);pg.gain.setTargetAtTime(1,t,.4);
+}
+function composeEndingBar(n0,t){ // último compás: dominante -> acorde de reposo largo, mientras el volumen se funde
+  PIECE.endBars++;
+  if(PIECE.endBars>=2){finalizePiece();return}
+  const barDur=16*PIECE.step,k=ROLE.inst.arm||'ens',bk=ROLE.inst.bajo==='timp'?'bass':(ROLE.inst.bajo||'bass');
+  CH.root=0;CH.seventh=false;
+  voiceChord(4,false).forEach(m=>qn(n0,k,m,8.5,.4,'arm'));
+  voiceChord(0,false).forEach(m=>qn(n0+8,k,m,22,.45,'arm'));
+  qn(n0,bk,fold(scaleMidi(4),bk),7,.45,'bajo');qn(n0+8,bk,fold(scaleMidi(0),bk),16,.5,'bajo');
+  pg.gain.cancelScheduledValues(t);pg.gain.setTargetAtTime(.0001,t+barDur*.3,barDur*.35);
+  FORM.prev=['arm','bajo'];
+}
+function finalizePiece(){ // la pieza terminó; queda la base y la memoria del lugar
+  PIECE.on=false;PIECE.ending=false;PIECE.q=[];PIECE.rec=[];S.acts=[];S.hits=[];M.cur=[];
+  SND.forEach(ty=>ty.pat.fill(null));
+  for(let i=MOT.length-1;i>=0;i--){MOT[i].w*=.7;if(MOT[i].w<.15)MOT.splice(i,1)}   // los motivos se debilitan pero se recuerdan
+  say('La música se fundió con la base.');
+}
+function musicTick(){
+  if(!S.running||S.paused)return;
+  const now=performance.now();
+  S.acts=S.acts.filter(x=>now-x<6000);
+  S.hits=S.hits.filter(x=>now-x<8000);
+  M.recent=M.recent.filter(e=>now-e.t<6000);
+  PIECE.rec=PIECE.rec.filter(h=>now-h.t<6000);
+  if(S.log&&S.log.length>400)S.log.splice(0,S.log.length-300);
+  updateContext(now);
+  if(now-SP.ti>1000){updateIdentity(now);SP.ti=now}
+  if(now-SP.tf>2000){forgetMemory(now);SP.tf=now}
+  if(!PIECE.on&&(SP.e1>.35||SP.cont>.22)&&now-S.t0>3000&&now-SP.lastEnergyAct>1000){S.acts.push(now);SP.lastEnergyAct=now}   // energía o sonido continuo también cuentan
+  if(SP.cont>.15)S.lastSound=now;                                               // un sonido continuo mantiene viva la música (como textura sostenida)
+  if(!PIECE.on&&S.acts.filter(x=>now-x<5000).length>=3)startPiece(now);
+  if(PIECE.on){
+    S.selfUntil=Math.max(S.selfUntil,now+400);
+    if(M.cur.length&&now-M.last>900){const ph=M.cur;M.cur=[];if(ph.length>=3)toMotif(ph)}
+    scheduleSteps();
+    if(!PIECE.ending&&now-S.lastSound>3200)beginEnding();
+    else if(PIECE.ending&&now-S.lastSound<1500)cancelEnding();
+  }else if(M.cur.length&&now-M.last>2000)M.cur=[];
+  recGate(PIECE.on||now-S.lastSound<3000);
+  showTip(now);
+}
+
+/* ---------- qué fue ese sonido: solo se describen características acústicas ---------- */
+const GRP={thud:'thud',clap:'clap',snare:'clap',hat:'clap',crash:'clap',tap:'tap',nota:'tap'};
+function classify(p,rmsNow,now){
+  const n=Math.max(1,p.n),clar=p.cl/n,tail=rmsNow/Math.max(p.pk,1e-6);
+  const x=p.bx;if(!x||x.tot<=0)return;          // no sobresalió del ruido del cuarto: no es un sonido
+  const ce=x.ce,pf=p.pf||0;
+  S.cls.push({clar:+clar.toFixed(2),broad:+x.broad.toFixed(2),cent:Math.round(ce),tail:+tail.toFixed(2)});
+  if(S.cls.length>40)S.cls.shift();
+  if(p.t0-p.vt<250)return;                      // ya había una nota sostenida antes: lo sigue el seguidor de notas
+  if(clar>T.clarVoice&&tail>.6)return;          // inicio de una nota: lo sigue el seguidor de notas
+  const tonal=!!(pf&&ce>=T.lowCent&&x.broad<.2&&clar>.45);      // solo una nota de verdad (no un chasquido con eco)
+  const kind=tonal?'nota':kindFor(ce,tail),gk=GRP[kind]||'tap';
+  S.percUntil=now+450;
+  const vel=clamp(.35+.15*Math.log2(p.pow),.3,1);
+  S.ev.push({t:now,k:gk});S.hits.push(performance.now());S.acts.push(now);S.stats[gk]++;
+  onEvent(vel,now,ce,tonal?pf:0,x.broad,tail,tonal,p.t0,p.pk);
+}
+function accentInst(m){ // el registro orienta la familia; el papel de pulso y el carácter del lugar deciden el resto
+  if(m<50)return wpick(['timp','bass'],[affinity('timp'),affinity('bass')]);
+  if(m<72)return (PIECE.on&&ROLE.inst.pulso)||wpick(['pizz','harp'],[affinity('pizz'),affinity('harp')]);
+  return wpick(['harp','pizz'],[affinity('harp'),affinity('pizz')]);
+}
+function onEvent(vel,now,ce,pf,broad,tail,tonal,t0,peak){
+  const w=innerWidth,h=innerHeight,t=ac.currentTime+.005;
+  const ty=memorize(now,ce,broad,tonal,vel);                                   // ¿es algo ya oído? ¿se repite?
+  const m=pf?69+12*Math.log2(pf/440):typeMidi(ty);                              // el mismo tipo de sonido, siempre la misma nota
+  ensureKey(m,ce);
+  const d=pf?snapPenta(degFromMidi(m)):typeDeg(ty);
+  addChroma(pf?m:scaleMidi(d),pf?1:.15);
+  const cls=eventClass(ty);
+  const prevT=EV.length?EV[EV.length-1].t:0;
+  const ev={t:now,t0,vel,ce,d,ty:ty.id,pf,cls,dur:null,peak:peak||vel*.05,low:0};
+  EV.push(ev);S.open=ev;                                                        // su duración se mide mientras dure
+  const sudden=PIECE.on&&(now-prevT>1800||(vel>.85&&vel>SP.avgVel*1.4));      // interrupción: tras un silencio o muy fuerte
+  if(sudden)SP.interrupt=now;
+  S.selfUntil=now+700;
+  PIECE.rec.push({t:now,ty,vel});recordHit(ty,vel,t);
+  remember(now,d,vel,m);
+  if(SP.dens>2.5&&EV.length%2===0)return;                                      // muy denso: no todos los golpes suenan
+  if(PIECE.on&&FORM.prev.includes('pulso')&&!sudden&&cls==='recurrente'&&EV.length%2===0)return;   // el pulso ya repite lo recurrente
+  const mm=scaleMidi(chordTone(d)),ik=accentInst(mm);
+  orchNote(ik,fold(mm,ik),t,ik==='timp'?1:.5,vel*(sudden?1.1:SP.dens>1.5?.55:cls==='aislado'?.7:.8),PIECE.on?'pulso':null);
+  if(sudden&&vel>.7)tutti(t,vel);
+  const x=w*(.1+.8*clamp((mm-40)/55,0,1));
+  if(mm<50)discs.push({x:w*rnd(.3,.7),y:h*rnd(.52,.76),r:20,a:1,v:lerp(110,190,vel)});
+  else rings.push({x:clamp(x+rnd(-24,24),30,w-30),y:h*rnd(.2,.62),r:4,v:lerp(24,58,vel),a:1});
+}
+function followNote(now){ // sonido con altura clara y sostenido: se sigue la nota; flauta, violín o chelo según la altura
+  if(!S.voiced||S.paused)return;
+  const isW=S.pf>T.whistleHz,low=!isW&&S.pf<190;
+  const m0=69+12*Math.log2(S.pf/440);
+  ensureKey(m0,1000);
+  const d=degFromMidi(m0);
+  if(S.fn===d&&now-S.fT<420)return;
+  if(now-S.fT<110)return;
+  S.fn=d;S.fT=now;S.stats.voice++;S.acts.push(now);S.selfUntil=now+800;
+  addChroma(m0,1);
+  const vel=clamp(.4+S.rmsN*.6,.4,1)*.8,t=ac.currentTime+.005;
+  const k=isW?'flute':low?'cello':'violin';
+  const mm=fold(scaleMidi(d)+(isW||low?0:12),k);
+  orchNote(k,mm,t,.6,vel,'mel');
+  EV.push({t:now,t0:now,vel,ce:S.pf*3,d,ty:0,pf:S.pf,cls:'continuo',dur:null,peak:vel,low:0});
+  remember(now,d,vel,mm);
+  beads.push({t:now,y:yOfF(mtof(mm)),k:isW});
+}
+
+/* ---------- análisis del micrófono (no se graba nada) ---------- */
+function bandStats(a,b){
+  const i0=Math.max(1,Math.floor(a/bw)),i1=Math.min(fbuf.length-1,Math.ceil(b/bw));
+  let sum=0,pk=-200,pi=i0;
+  for(let i=i0;i<=i1;i++){
+    const db=fbuf[i],m=db>-200?Math.pow(10,db/20):0;
+    sum+=m;
+    if(db>pk){pk=db;pi=i}
+  }
+  const lin=sum/(i1-i0+1);
+  return{lin,db:20*Math.log10(Math.max(lin,1e-9)),pkF:pi*bw,pkDb:pk};
+}
+const normBand=(k,db)=>{
+  S.ceil[k]=Math.max(S.ceil[k]-.004,db,k==='high'?-60:-50);
+  return clamp((db+90)/(S.ceil[k]+90),0,1);
+};
+const gate=()=>Math.max(.012/S.sens,S.floor*3)*(S.now<S.selfUntil?2:1); // mientras suena la orquesta se exige más, para no oírse a sí misma
+/* ---------- el color del sonido: solo lo que sobresale del ruido del cuarto ---------- */
+const mag=i=>fbuf[i]>-200?Math.pow(10,fbuf[i]/20):0;
+function excess(){
+  const i0=Math.max(1,Math.floor(80/bw)),i1=Math.min(fbuf.length-1,Math.ceil(8000/bw));
+  if(!S.bgSpec||S.bgSpec.length!==fbuf.length){S.bgSpec=new Float32Array(fbuf.length);S.exv=new Float32Array(fbuf.length);for(let i=0;i<fbuf.length;i++)S.bgSpec[i]=mag(i)}
+  const bg=S.bgSpec,ev=S.exv;let tot=0,cw=0,mx=0;
+  for(let i=i0;i<=i1;i++){const e=Math.max(0,mag(i)-bg[i]*3);ev[i]=e;tot+=e;cw+=e*i*bw;if(e>mx)mx=e}
+  let wide=0;for(let i=i0;i<=i1;i++)if(ev[i]>mx*.12)wide++;
+  return{tot,ce:tot>0?cw/tot:0,broad:mx>0?wide/(i1-i0+1):0};
+}
+function learnBg(){ // el ruido del cuarto se aprende solo cuando no hay golpes
+  const bg=S.bgSpec;if(!bg)return;
+  for(let i=1;i<fbuf.length;i++)bg[i]+=(mag(i)-bg[i])*.03;
+}
+let dec,acr;
+function detectPitch(rms){ // autocorrelación: ¿hay una nota clara?
+  if(rms<gate())return null;
+  const half=tbuf.length>>1;
+  if(!dec){dec=new Float32Array(half);acr=new Float32Array(half)}
+  for(let i=0;i<half;i++)dec[i]=(tbuf[2*i]+tbuf[2*i+1])*.5;
+  const sr2=ac.sampleRate/2,W=512;
+  const lmin=Math.max(8,Math.floor(sr2/1500)),lmax=Math.min(Math.floor(sr2/70),half-W-2);
+  let e0=0;for(let i=0;i<W;i++)e0+=dec[i]*dec[i];
+  if(e0<1e-9)return null;
+  let best=0,bl=lmin;
+  for(let l=lmin;l<=lmax;l++){
+    let c=0,e1=0;
+    for(let i=0;i<W;i++){const y=dec[i+l];c+=dec[i]*y;e1+=y*y}
+    const v=c/Math.sqrt(e0*e1+1e-12);acr[l]=v;if(v>best){best=v;bl=l}
+  }
+  if(best<.5)return{f:0,clarity:best};
+  for(let l=lmin+1;l<bl;l++)if(acr[l]>acr[l-1]&&acr[l]>=acr[l+1]&&acr[l]>best*.9){bl=l;break}
+  let off=0;
+  if(bl>lmin&&bl<lmax){const a=acr[bl-1],b=acr[bl],c=acr[bl+1],d=a-2*b+c;if(d!==0)off=.5*(a-c)/d}
+  return{f:sr2/(bl+off),clarity:acr[bl]};
+}
+function analyse(now){
+  S.now=now;
+  an.getFloatTimeDomainData(tbuf);
+  let s=0;for(let i=0;i<tbuf.length;i++)s+=tbuf[i]*tbuf[i];
+  const rms=Math.sqrt(s/tbuf.length);
+  let s2=0;for(let i=tbuf.length-512;i<tbuf.length;i++)s2+=tbuf[i]*tbuf[i];
+  const rmsS=Math.sqrt(s2/512);
+  S.rms=rms;S.fast+=(rmsS-S.fast)*.6;S.slow+=(rms-S.slow)*.02;
+  S.rmsCeil=Math.max(S.rmsCeil*.9996,rms,.006);
+  S.rmsN=clamp(rms/S.rmsCeil,0,1);
+  S.rmsAvg+=(S.rmsN-S.rmsAvg)*.003;
+  if(rms<S.floor)S.floor+=(rms-S.floor)*.05;else S.floor*=1.0006;   // piso: el ruido normal del cuarto
+  S.floor=clamp(S.floor,.0008,.03);
+  if(rms<S.floorSlow)S.floorSlow+=(rms-S.floorSlow)*.02;else S.floorSlow*=1.00008;   // piso MUY lento: para notar sonidos continuos
+  S.floorSlow=clamp(S.floorSlow,.0008,.03);
+  if(now<S.calibUntil&&rms<S.floor*1.8+.002){S.floor+=(rms-S.floor)*.08;S.floorSlow+=(rms-S.floorSlow)*.08}   // la base sostenida cuenta como ruido normal
+
+  an.getFloatFrequencyData(fbuf);
+  const ex=excess();
+  const lo=bandStats(50,250),mi=bandStats(250,2000),hi=bandStats(2000,8000);
+  S.lowN+=(normBand('low',lo.db)-S.lowN)*.15;
+  S.midN+=(normBand('mid',mi.db)-S.midN)*.15;
+  S.highN+=(normBand('high',hi.db)-S.highN)*.15;
+  if(lo.pkDb>-85)S.hum+=(lo.pkF-S.hum)*.02;
+
+  // planitud (ruidoso vs. tonal) y centroide (grave vs. agudo)
+  let sl=0,sm=0,c=0,cw=0,cs=0,hl=0,hm=0,hc=0;
+  const a0=Math.max(1,Math.floor(100/bw)),a1=Math.min(fbuf.length-1,Math.ceil(8000/bw));
+  for(let i=a0;i<=a1;i++){
+    const db=fbuf[i],m=db>-200?Math.pow(10,db/20):1e-10;
+    cw+=m*i*bw;cs+=m;
+    if(i*bw>=300){sl+=Math.log(m+1e-10);sm+=m;c++}
+    if(i*bw>=2000){hl+=Math.log(m+1e-10);hm+=m;hc++}
+  }
+  S.flatHi+=(Math.exp(hl/hc)/(hm/hc+1e-12)-S.flatHi)*.3;
+  const flat=Math.exp(sl/c)/(sm/c+1e-12),cent=cs>1e-9?cw/cs:S.cent;
+  S.flat+=(flat-S.flat)*.4;S.cent+=(cent-S.cent)*.5;
+
+  // nota clara (voz o silbido), solo si el sonido es estable
+  let pr=S.lastPr;
+  if(S.frames%2===0){pr=detectPitch(rms);S.lastPr=pr}
+  S.rh.push(rmsS);if(S.rh.length>8)S.rh.shift();
+  const steady=rmsS>Math.max(...S.rh)*.55;
+  const ok=pr&&pr.f>0&&pr.clarity>T.clarVoice&&rms>gate()&&steady&&now>S.percUntil;
+  S.vcount=ok?S.vcount+1:0;
+  S.voiced=S.vcount>=5;
+  if(ok&&S.frames%2===0){
+    S.pitchBuf.push(pr.f);if(S.pitchBuf.length>3)S.pitchBuf.shift();
+    const sorted=[...S.pitchBuf].sort((a,b)=>a-b);
+    S.pf=sorted[sorted.length>>1];
+  }
+  if(!ok&&S.vcount===0)S.pitchBuf.length=0;
+  if(S.voiced){S.voiceT=now;S.kind=S.pf>T.whistleHz?'whistle':'voice'}
+  S.vRing.push(S.voiced?1:0);S.vSum+=S.voiced?1:0;
+  if(S.vRing.length>600)S.vSum-=S.vRing.shift();
+  followNote(now);
+
+  // duración del acontecimiento abierto: termina cuando el sonido cae por debajo del 30 % de su pico
+  if(S.open){
+    const ev=S.open;ev.peak=Math.max(ev.peak,rmsS);
+    if(rmsS<Math.max(ev.peak*.3,S.floor*2.5))ev.low++;else ev.low=0;
+    if(ev.low>=3||now-ev.t0>4000){ev.dur=now-ev.t0;S.open=null;closeEvent(ev)}
+  }
+
+  // golpes: subidas rápidas de volumen frente al promedio
+  const ratio=1+1.2/S.sens,abs=.008/S.sens,smul=now<S.selfUntil?2.6:1;
+  if(!S.pend&&now-S.t0>1500&&S.fast>S.slow*ratio&&S.fast>Math.max(abs,S.floor*3)*smul&&rmsS>abs*smul&&now-S.lastOn>160){
+    S.lastOn=now;S.lastPerc=now;S.onsets.push(now);
+    S.pend={t0:now,vt:S.voiceT,n:0,cl:0,fl:0,ce:0,pk:rmsS,pf:0,bx:null,pow:S.fast/(S.slow+.001)};
+  }
+  if(S.pend){
+    const p=S.pend;p.n++;p.cl+=pr?pr.clarity:0;p.fl+=flat;p.ce+=cent;p.pk=Math.max(p.pk,rmsS);if(pr&&pr.f>0&&pr.clarity>.55)p.pf=pr.f;if(!p.bx||ex.tot>p.bx.tot)p.bx=ex;
+    if(now-p.t0>=45){classify(p,rmsS,now);S.pend=null}
+  }
+
+  if(!S.pend&&!S.voiced&&now-S.lastOn>400)learnBg();
+
+  // roce / "shhh": mucho agudo, ruidoso, sostenido
+  S.hiss=S.highSm>.25&&S.flatHi>.35&&!S.voiced&&!S.pend&&now-S.lastPerc>350&&rms>gate();
+  S.hissSm+=((S.hiss?1:0)-S.hissSm)*.1;
+  if(S.hiss){S.stats.hiss++;if(S.frames%30===0)S.acts.push(now)}
+
+  // silencio
+  const q=S.rmsN<.12?1:0;S.sil.push(q);S.silSum+=q;
+  if(S.sil.length>600)S.silSum-=S.sil.shift();
+  S.silence=S.silSum/S.sil.length;
+  S.silTotal+=q;S.frames++;
+}
+
+function say(text,show){ // el registro guarda lo que pasa; en pantalla solo se muestra si es un aviso importante (show)
+  const now=performance.now();
+  if(now-S.lastSay<1800&&S.log.length&&!show)return;
+  S.lastSay=now;
+  S.log.push({t:(now-S.t0)/1000,text});
+  if(!show)return;
+  const tp=$('tip');if(tp)tp.classList.remove('show');
+  const el=$('agent');
+  el.textContent=text;
+  el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
+}
+function decide(){ // cómo se está comportando el lugar (el texto de la pantalla)
+  const now=S.now;
+  S.ev=S.ev.filter(e=>now-e.t<10000);
+  const vs=S.vSum/Math.max(1,S.vRing.length);
+  let k=null,msg;
+  if(S.rate>150){k='saturado';msg='Hay demasiados golpes. No los sigo todos: me quedo con el pulso.'}
+  else if(vs>.15&&S.kind==='whistle'){k='silbido';msg='Hay un silbido. Lo sigue la flauta.'}
+  else if(vs>.15){k='voz';msg='Hay una voz. La siguen las cuerdas.'}
+  else if(PIECE.on&&SP.reg>.7&&SP.dens>.8){k='regular';msg='El lugar tiene un pulso regular.'}
+  else if(PIECE.on&&SP.dens>1&&SP.reg<.3){k='irregular';msg='El lugar suena irregular, con interrupciones.'}
+  else if(S.hissSm>.4){k='roce';msg='Hay aire y roces. Dejo caer polvo.'}
+  else k='otro';
+  if(k!==S.agent){S.agent=k;if(msg)say(msg)}
+}
+
+/* ---------- notas que explican, en general, qué hace el traductor: "cuando pasa esto, lo interpreta así" ---------- */
+const TIPS=[
+  // cómo escucha
+  {id:'mic',    ok:()=>true,                       t:'El micrófono solo escucha. No se graba ni se reproduce: lo único que se guarda es la música que se genera.'},
+  {id:'base',   ok:()=>true,                       t:'Al empezar suena una nota sostenida: es la base donde nace la música. Cambia a la nota del lugar cuando la descubre.'},
+  {id:'floor',  ok:()=>!PIECE.on,                  t:'Al empezar aprende el ruido normal de tu cuarto. Lo que ya estaba ahí no cuenta como sonido.'},
+  {id:'silence',ok:()=>!PIECE.on,                  t:'Cuando hay silencio, solo queda una nota sostenida de fondo: la base. La música aparece cuando el lugar hace algo.'},
+  // cómo interpreta lo que oye
+  {id:'pitch',  ok:()=>SND.length>0,               t:'Cuando oye un sonido grave, lo traduce a una nota grave. Uno agudo, a una nota aguda. El brillo del sonido decide la altura de la nota.'},
+  {id:'vocab',  ok:()=>SND.length>0,               t:'El mismo tipo de sonido siempre toca la misma nota. Así el lugar va armando su propio vocabulario.'},
+  {id:'hit',    ok:()=>true, ev:1, now:()=>SP.interrupt>0&&performance.now()-SP.interrupt<10000,
+                                                    t:'Cuando oye un golpe fuerte e inesperado, lo interpreta como una interrupción: toda la orquesta suena un instante y la música se tensa.'},
+  {id:'repeat', ok:()=>SND.some(x=>x.n>=3),        t:'Cuando un sonido se repite, lo recuerda y le da importancia. Si suena una sola vez, lo olvida pronto.'},
+  {id:'rhythm', ok:()=>SND.some(x=>x.reg>=.5),     t:'Cuando algo se repite con ritmo parejo, lo convierte en el pulso de la música y en el ritmo que tocan los instrumentos.'},
+  {id:'tonal',  ok:()=>true, ev:1, now:()=>S.stats.voice>0&&performance.now()-S.fT<8000, t:'Cuando oye una nota con altura clara, como cantar o silbar, la sigue con una flauta, un violín o un chelo, según qué tan aguda sea.'},
+  {id:'cont',   ok:()=>true, ev:1, now:()=>SP.cont>.22,  t:'Cuando oye un sonido largo y parejo, como un zumbido, lo toma como una nota larga de fondo que sostiene la armonía.'},
+  {id:'start',  ok:()=>!PIECE.on&&SND.length>0,    t:'Cuando se juntan tres sonidos en pocos segundos, empieza la pieza. Tu primer sonido marca el primer tiempo.'},
+  // cómo construye la música
+  {id:'layers', ok:()=>PIECE.on&&INT.layers>=2, live:1, t:'Cuando hay mucha actividad, entran más instrumentos. Cuando el lugar se calma, se van retirando. Las capas las ves a la izquierda.'},
+  {id:'tension',ok:()=>PIECE.on, live:1,           t:'Cuando los sonidos cambian de golpe o son irregulares, la música se llena de tensión. Cuando son parejos, se relaja.'},
+  {id:'motif',  ok:()=>PIECE.on&&MOT.length>0, live:1, t:'Los sonidos que se repiten se convierten en motivos: pequeñas melodías que la orquesta repite, invierte, alarga y transforma.'},
+  {id:'phrase', ok:()=>PIECE.on, live:1,           t:'La música se organiza en frases de 4 compases: empieza, se desarrolla y termina en una nota de reposo.'},
+  {id:'chords', ok:()=>PIECE.on, live:1,           t:'Los acordes se eligen según las notas que van apareciendo en el lugar.'},
+  {id:'key',    ok:()=>PIECE.on, live:1,           t:'Si el lugar es oscuro, con sonidos graves, la música suena en modo menor. Si es brillante, en modo mayor.'},
+  {id:'climax', ok:()=>PIECE.on&&FORM.nsec>=1, live:1, now:()=>FORM.sec==='climax'||FORM.sec==='reposo',
+                                                    t:'Cuando la actividad sube, la música se construye hasta un momento de mayor intensidad. Cuando baja, busca el reposo.'},
+  {id:'memory', ok:()=>SND.length>1&&innerWidth>=720, live:1, t:'Arriba ves lo que el lugar recuerda: los círculos son sonidos, y los más grandes son los que más se repiten.'},
+  {id:'ident',  ok:()=>S.stats.chords>3,           t:'Cada lugar tiene su carácter: el tempo, la tonalidad y los instrumentos cambian según cómo suena. Dos lugares nunca suenan igual.'},
+  // al final
+  {id:'end',    ok:()=>!PIECE.on&&S.stats.chords>0, t:'Cuando el lugar se calla, la música baja poco a poco, cierra con un acorde de reposo y se funde con la base. Si vuelve un sonido, sigue donde iba.'},
+  {id:'save',   ok:()=>S.stats.chords>0,           t:'Puedes guardar la canción con el botón de abajo a la derecha. Solo guarda la música, sin silencios.'},
+  {id:'phones', ok:()=>PIECE.on, live:1,           t:'Con audífonos funciona mejor: así el micrófono no escucha a la orquesta.'}
+];
+const tipSeen=new Set();let tipLast=0;
+function showTip(now){ // una nota cada ~11 s; si acaba de pasar lo que explica una, esa sale primero
+  if(now-S.t0<4000||now-tipLast<5000||now-S.lastSay<3000)return;
+  let c=TIPS.filter(x=>!tipSeen.has(x.id)&&x.ok());
+  if(!c.length){tipSeen.clear();c=TIPS.filter(x=>x.ok())}
+  if(!c.length)return;
+  const hot=c.some(x=>x.now&&x.now());                                              // algo que explica una nota acaba de pasar: puede salir antes
+  if(!hot&&now-tipLast<11000)return;
+  const rank=x=>(x.now&&x.now()?(x.ev?20:10):0)+(PIECE.on&&x.live?1:0);          // 1.º lo que acaba de pasar, 2.º cambios de estado, 3.º lo que se ve mientras suena
+  c.sort((a,b)=>rank(b)-rank(a));
+  const x=c[0];tipSeen.add(x.id);tipLast=now;
+  const el=$('tip');
+  el.innerHTML='<small>cómo funciona</small>'+x.t;
+  el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
+}
+
+/* ---------- arranque ---------- */
+async function start(){
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:false,autoGainControl:false}});
+  ac=new (window.AudioContext||window.webkitAudioContext)();
+  await ac.resume();
+  const src=ac.createMediaStreamSource(stream);
+  an=ac.createAnalyser();an.fftSize=2048;an.smoothingTimeConstant=.2;
+  src.connect(an); // el micrófono solo entra al análisis: no se graba ni se reproduce
+  tbuf=new Float32Array(an.fftSize);fbuf=new Float32Array(an.frequencyBinCount);
+  bw=ac.sampleRate/an.fftSize;
+
+  noiseBuf=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);
+  const nd=noiseBuf.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
+
+  const master=ac.createGain(),dry=ac.createGain(),verb=ac.createConvolver();
+  master.gain.value=.8;verb.buffer=impulse(1.1);
+  comp=ac.createDynamicsCompressor();
+  comp.threshold.value=-18;comp.ratio.value=4;comp.attack.value=.005;comp.release.value=.2;
+  inst=ac.createGain();bright=ac.createBiquadFilter();bright.type='lowpass';bright.frequency.value=4800;
+  wet=ac.createGain();wet.gain.value=.12;
+  pg=ac.createGain();inst.connect(pg);pg.connect(bright);   // pg: volumen de la pieza (baja y sube sin tocar la base)
+  bright.connect(dry);bright.connect(verb);verb.connect(wet);
+  const lim=ac.createDynamicsCompressor();             // limitador: evita saturaciones aunque suenen muchas capas
+  lim.threshold.value=-4;lim.knee.value=0;lim.ratio.value=20;lim.attack.value=.002;lim.release.value=.12;
+  dry.connect(master);wet.connect(master);master.connect(comp);comp.connect(lim);lim.connect(ac.destination);
+
+  // cepillo suave (para roces)
+  const hs=ac.createBufferSource();hs.buffer=noiseBuf;hs.loop=true;
+  const hf=ac.createBiquadFilter();hf.type='bandpass';hf.frequency.value=5200;hf.Q.value=.6;
+  hissG=ac.createGain();hissG.gain.value=0;
+  hs.connect(hf);hf.connect(hissG);hissG.connect(inst);hs.start();
+
+  // se graba solo la música que genera la pieza, nunca el micrófono
+  recDest=ac.createMediaStreamDestination();lim.connect(recDest);recStart();   // solo se graba la música que genera la pieza
+  wafScript(); // instrumentos de orquesta (si no hay internet, suena el respaldo sintético)
+  droneTo(9,6); // la base sostenida empieza a sonar desde el primer momento
+
+  S.t0=performance.now();S.running=true;
+  document.body.classList.add('on');
+  applyEnv();
+  setInterval(musicTick,100);
+  setInterval(updateKey,1000);
+  setInterval(()=>applyEnv(),5000);
+  setInterval(()=>{if(!S.paused)decide()},4000);
+  say('Estoy escuchando. La música va a salir de lo que suene aquí.');
+  if(PLACE){loadWeather();setInterval(loadWeather,15*60*1000)}   // el clima es opcional
+  // si la pestaña queda en segundo plano el navegador pausa la pantalla: el análisis del micrófono sigue por este temporizador
+  setInterval(()=>{if(S.running&&!S.paused&&document.hidden===true)analyse(performance.now())},60);
+  wake();
+}
+
+/* ---------- visual ---------- */
+const cv=$('c'),g=cv.getContext('2d');
+let dpr=1;
+function rs(){dpr=Math.min(devicePixelRatio||1,2);cv.width=innerWidth*dpr;cv.height=innerHeight*dpr}
+addEventListener('resize',rs);rs();
+
+const STOPS=[[0,[34,31,44]],[5,[44,40,58]],[6.5,[246,226,220]],[9,[247,242,234]],[15,[246,238,228]],[17.5,[246,214,200]],[19,[74,58,84]],[21,[34,31,44]],[24,[34,31,44]]];
+function themeBg(){
+  const h=hourNow();let c=STOPS[0][1];
+  for(let i=0;i<STOPS.length-1;i++){
+    const[a,ca]=STOPS[i],[b,cb]=STOPS[i+1];
+    if(h>=a&&h<=b){const t=(h-a)/(b-a);c=ca.map((v,k)=>v+(cb[k]-v)*t);break}
+  }
+  const grey=[150,160,176],mix=S.weather.cloud/100*.1+(S.rain?.18:0);
+  return c.map((v,k)=>Math.round(v+(grey[k]-v)*mix));
+}
+function setTheme(){
+  const bg=themeBg();S.bg=bg;
+  const lum=(.299*bg[0]+.587*bg[1]+.114*bg[2])/255,dark=lum<.5;
+  const ink=dark?[239,234,245]:[43,39,48],st=document.documentElement.style;
+  S.ink=ink;
+  st.setProperty('--bg',`rgb(${bg})`);
+  st.setProperty('--ink',`rgb(${ink})`);
+  st.setProperty('--soft',`rgba(${ink},.5)`);
+  st.setProperty('--line',`rgba(${ink},.16)`);
+}
+
+let last=0,tick=0;
+function frame(ts){
+  const dt=Math.min(.05,(ts-last)/1000||.016);last=ts;const t=ts/1000;
+  if(S.running&&!S.paused)analyse(ts);
+  if(S.running){S.onsets=S.onsets.filter(o=>ts-o<10000);S.rate=S.onsets.length*6}
+  S.lowSm+=(S.lowN-S.lowSm)*.08;S.midSm+=(S.midN-S.midSm)*.08;S.highSm+=(S.highN-S.highSm)*.08;
+  SEQ.pulse*=.9;
+  if(S.running&&!S.paused){
+    hissG.gain.setTargetAtTime(S.hiss?clamp(S.highSm*.05,0,.05):0,ac.currentTime,.12);
+    if(S.voiced)trace.push({t:ts,y:yOfF(S.pf),k:S.pf>T.whistleHz,a:clamp(.4+S.rmsN,0,1)});
+  }
+  if(tick%20===0)setTheme();
+  if(tick%30===0){for(let i=notes.length-1;i>=0;i--)if(ts-notes[i].t>7200)notes.splice(i,1)}
+  if(tick%3===0)$('lvb').style.width=Math.round(clamp(Math.sqrt(S.rms/.06),0,1)*100)+'%';
+  tick++;
+  draw(dt,t,ts);
+  requestAnimationFrame(frame);
+}
+function draw(dt,t,ts){
+  const w=innerWidth,h=innerHeight,ink=S.ink;
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.fillStyle=`rgb(${S.bg})`;g.fillRect(0,0,w,h);
+
+  // pad: resplandor que sube desde abajo con el zumbido y late con el bombo
+  const pl=Math.min(1,S.lowSm*(1+.25*SEQ.pulse));
+  [[.5+.18*Math.sin(t*.12),1.08,.8,.5],[.3+.2*Math.cos(t*.09),1.15,.6,.28]].forEach(([fx,fy,fr,fa])=>{
+    const cx=w*fx,cy=h*fy,r=Math.max(w,h)*fr*(.5+.5*pl);
+    const gr=g.createRadialGradient(cx,cy,0,cx,cy,r);
+    gr.addColorStop(0,rgba(COL.pad,(.1+.4*pl)*fa*2));
+    gr.addColorStop(1,rgba(COL.pad,0));
+    g.fillStyle=gr;g.fillRect(0,0,w,h);
+  });
+
+  // golpe grave: disco grande y suave
+  for(let i=discs.length-1;i>=0;i--){
+    const d=discs[i];d.r+=d.v*dt;d.a-=dt*.7;
+    if(d.a<=0){discs.splice(i,1);continue}
+    const gr=g.createRadialGradient(d.x,d.y,0,d.x,d.y,d.r);
+    gr.addColorStop(0,rgba(COL.mar,d.a*.32));
+    gr.addColorStop(.7,rgba(COL.pad,d.a*.18));
+    gr.addColorStop(1,rgba(COL.pad,0));
+    g.fillStyle=gr;g.beginPath();g.arc(d.x,d.y,d.r,0,6.283);g.fill();
+  }
+
+  // el espacio respira: línea fina que sigue el volumen
+  const amp=4+60*S.rmsN;
+  for(let k=0;k<2;k++){
+    g.beginPath();
+    for(let x=0;x<=w;x+=6){
+      const e=Math.sin(Math.PI*x/w);
+      const y=h*.5+k*9+e*amp*(Math.sin(x*.005+t*(.9+k*.25)+k)*.6+Math.sin(x*.013-t*1.4)*.4);
+      x?g.lineTo(x,y):g.moveTo(x,y);
+    }
+    g.strokeStyle=rgba(COL.str,k?.14:.4);g.lineWidth=k?1:1.2;g.lineCap='round';g.stroke();
+  }
+
+  // la banda: cada nota recorre la pantalla de derecha a izquierda
+  const SPEED=130,HEAD=w*.88,LIFE=7000;
+  g.lineCap='round';g.lineJoin='round';
+  for(const n of notes){
+    if(ts<n.t)continue;
+    const age=(ts-n.t)/LIFE;if(age>1)continue;
+    const x=HEAD-(ts-n.t)/1000*SPEED,al=(1-age)*(.55+.45*n.v),cc=n.r?ROLE_COL[n.r]:null;   // cc: el papel (armonía, bajo, pulso, melodía, color) tiñe la nota
+    switch(n.k){
+      case 'bass':{const wd=Math.max(14,n.len*SPEED*.9);g.fillStyle=rgba(cc||COL.bass,al*.8);
+        g.beginPath();g.roundRect?g.roundRect(x,n.y-5,wd,10,5):g.rect(x,n.y-5,wd,10);g.fill();break}
+      case 'str':{const wd=n.len*SPEED;g.fillStyle=rgba(cc||COL.strl,al*.55);
+        g.beginPath();g.roundRect?g.roundRect(x,n.y-4,wd,8,4):g.rect(x,n.y-4,wd,8);g.fill();break}
+      case 'arp':g.fillStyle=rgba(cc||COL.str,al);g.beginPath();g.arc(x,n.y,3.2,0,6.283);g.fill();break;
+      case 'vib':g.strokeStyle=rgba(cc||COL.mar,al);g.lineWidth=1.3;g.beginPath();g.arc(x,n.y,6,0,6.283);g.stroke();
+        g.fillStyle=rgba(cc||COL.mar,al);g.beginPath();g.arc(x,n.y,2,0,6.283);g.fill();break;
+      case 'bell':g.fillStyle=rgba(COL.bel,al*.18);g.beginPath();g.arc(x,n.y,9,0,6.283);g.fill();
+        g.fillStyle=rgba(COL.bel,al);g.beginPath();g.arc(x,n.y,2.8,0,6.283);g.fill();break;
+      case 'kick':g.fillStyle=rgba(COL.bass,al*.5);g.beginPath();g.arc(x,h*.83,9*(.6+.4*n.v),0,6.283);g.fill();break;
+      case 'snare':g.strokeStyle=rgba(COL.mar,al);g.lineWidth=1.3;g.beginPath();g.arc(x,h*.83,6,0,6.283);g.stroke();break;
+      case 'hat':g.strokeStyle=rgba(ink,al*.4);g.lineWidth=1.2;g.beginPath();g.moveTo(x,h*.83-7);g.lineTo(x,h*.83+7);g.stroke();break;
+      case 'shk':g.fillStyle=rgba(ink,al*.35);g.beginPath();g.arc(x,h*.83,1.4,0,6.283);g.fill();break;
+    }
+  }
+
+  // voz y silbido: cinta con la altura de la nota
+  while(trace.length&&ts-trace[0].t>LIFE)trace.shift();
+  while(beads.length&&ts-beads[0].t>LIFE)beads.shift();
+  for(let i=1;i<trace.length;i++){
+    const a=trace[i-1],b=trace[i];
+    if(b.t-a.t>120)continue;
+    const al=(1-(ts-b.t)/LIFE)*b.a;
+    g.beginPath();g.moveTo(HEAD-(ts-a.t)/1000*SPEED,a.y);g.lineTo(HEAD-(ts-b.t)/1000*SPEED,b.y);
+    g.strokeStyle=rgba(b.k?COL.bel:COL.str,al);g.lineWidth=2.6;g.stroke();
+  }
+  beads.forEach(b=>{
+    const x=HEAD-(ts-b.t)/1000*SPEED,al=1-(ts-b.t)/LIFE,c=b.k?COL.bel:COL.str;
+    g.fillStyle=rgba(c,al*.18);g.beginPath();g.arc(x,b.y,9,0,6.283);g.fill();
+    g.fillStyle=rgba(c,al);g.beginPath();g.arc(x,b.y,3.2,0,6.283);g.fill();
+  });
+  if(trace.length&&ts-trace[trace.length-1].t<150){
+    const p=trace[trace.length-1],c=p.k?COL.bel:COL.str;
+    g.fillStyle=rgba(c,.25);g.beginPath();g.arc(HEAD,p.y,12,0,6.283);g.fill();
+    g.fillStyle=rgba(c,1);g.beginPath();g.arc(HEAD,p.y,4,0,6.283);g.fill();
+  }
+
+  // toque: anillos finos
+  for(let i=rings.length-1;i>=0;i--){
+    const r=rings[i];r.r+=r.v*dt;r.a-=dt*.32;
+    if(r.a<=0){rings.splice(i,1);continue}
+    g.beginPath();g.arc(r.x,r.y,r.r,0,6.283);
+    g.strokeStyle=rgba(COL.mar,r.a*r.a*.85);g.lineWidth=1;g.stroke();
+  }
+
+  // aplauso: chispas
+  const fr=Math.pow(.03,dt);
+  for(let i=bursts.length-1;i>=0;i--){
+    const p=bursts[i];p.vx*=fr;p.vy*=fr;p.x+=p.vx*dt;p.y+=p.vy*dt;p.a-=dt*.85;
+    if(p.a<=0){bursts.splice(i,1);continue}
+    g.strokeStyle=rgba(p.c,p.a);g.lineWidth=p.s*.6;
+    g.beginPath();g.moveTo(p.x-p.vx*.035,p.y-p.vy*.035);g.lineTo(p.x,p.y);g.stroke();
+    g.fillStyle=rgba(p.c,p.a);g.beginPath();g.arc(p.x,p.y,p.s,0,6.283);g.fill();
+  }
+
+  // roce: polvo que flota
+  if(S.hiss){
+    const n=Math.round(dt*220*(.4+S.highSm));
+    for(let i=0;i<n;i++)dust.push({x:rnd(0,w),y:rnd(h*.25,h*.9),vx:rnd(-8,8),vy:rnd(-34,-10),a:rnd(.7,1),s:rnd(1.2,2.6),c:Math.random()<.5?COL.str:COL.bel});
+  }
+  for(let i=dust.length-1;i>=0;i--){
+    const p=dust[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.a-=dt*.5;
+    if(p.a<=0){dust.splice(i,1);continue}
+    g.fillStyle=rgba(p.c,Math.min(1,p.a*1.1));g.beginPath();g.arc(p.x,p.y,p.s,0,6.283);g.fill();
+  }
+  drawMind(w,h,ts,dt,ink);
+}
+
+/* ---------- la pieza se ve construirse: capas, forma, memoria del lugar, ritmo y motivo ---------- */
+const ROLE_COL={arm:[178,160,214],bajo:[142,120,196],pulso:[236,120,158],mel:[226,176,52],color:[242,160,122]};
+const ROLE_ES={arm:'armonía',bajo:'bajo',pulso:'pulso',mel:'melodía',color:'color'};
+const SEC_ES={intro:'introducción',desarrollo:'desarrollo',contraste:'contraste',climax:'clímax',reposo:'reposo'};
+const OP_ES={declaracion:'declaración',eco:'eco',secuencia:'secuencia',inversion:'inversión',fragmento:'fragmento',disminucion:'disminución',aumentacion:'aumentación',ascenso:'ascenso',descenso:'descenso',cadencia:'cadencia'};
+const lay={arm:0,bajo:0,pulso:0,mel:0,color:0};
+const txtAt=(txt,x,y,a,ink,align)=>{g.fillStyle=rgba(ink,a);g.textAlign=align||'left';g.fillText(txt,x,y)};
+function drawMind(w,h,ts,dt,ink){
+  if(!S.running)return;
+  g.save();
+  g.font='10px Inter,system-ui,sans-serif';g.textBaseline='middle';g.lineWidth=1;
+  const on=PIECE.on;
+  for(const r in lay)lay[r]+=(((on&&FORM.prev.includes(r))?1:0)-lay[r])*Math.min(1,dt*2);
+  // capas: entran y salen según la actividad del lugar
+  ['arm','bajo','pulso','mel','color'].forEach((r,i)=>{
+    const a=lay[r];if(a<.03)return;
+    const y=h*.4+i*22,col=ROLE_COL[r];
+    g.fillStyle=rgba(col,.9*a);g.beginPath();g.arc(34,y,4.5,0,6.283);g.fill();
+    g.strokeStyle=rgba(col,.35*a);g.beginPath();g.arc(34,y,8+3*Math.sin(ts/500+i),0,6.283);g.stroke();
+    txtAt(ROLE_ES[r]+(ROLE.inst[r]?' · '+NOMBRE[ROLE.inst[r]]:''),50,y,.7*a,ink);
+  });
+  // forma: sección, los 4 compases de la frase, tensión y energía
+  if(on){
+    const x0=30,y0=66;
+    txtAt('FRASE '+Math.max(1,FORM.phrase),x0,y0,.55,ink);
+    for(let i=0;i<4;i++){
+      g.beginPath();g.arc(x0+4+i*14,y0+16,3,0,6.283);
+      if(i===FORM.pb){g.fillStyle=rgba(ink,.8);g.fill()}else{g.strokeStyle=rgba(ink,.35);g.stroke()}
+    }
+    const bar=(y,v,col,txt)=>{
+      g.strokeStyle=rgba(ink,.12);g.lineWidth=2;g.beginPath();g.moveTo(x0,y);g.lineTo(x0+100,y);g.stroke();
+      g.strokeStyle=rgba(col,.85);g.beginPath();g.moveTo(x0,y);g.lineTo(x0+100*clamp(v,0,1),y);g.stroke();
+      g.lineWidth=1;txtAt(txt,x0+110,y,.4,ink);
+    };
+    bar(y0+32,INT.tension,[236,120,158],'tensión');
+    bar(y0+44,SP.e1,[178,160,214],'energía');
+  }
+  if(w>=720){
+    // memoria del lugar: cada círculo es un tipo de sonido (posición = brillo y ancho; tamaño = importancia)
+    const x0=w*.28,x1=w*.72,yb=46;
+    txtAt('MEMORIA DEL LUGAR',(x0+x1)/2,22,.3,ink,'center');
+    const pos=ty=>({x:lerp(x0,x1,clamp((ty.f-6.8)/6.2,0,1)),y:yb+clamp(ty.b,0,.6)*45});
+    for(const k in CHAIN){                                                       // relaciones: qué sonido suele seguir a cuál
+      const c=CHAIN[k];if(c.n<2)continue;
+      const A=SND.find(q=>q.id===c.a),B=SND.find(q=>q.id===c.b);if(!A||!B)continue;
+      const pa=pos(A),pb=pos(B);
+      g.strokeStyle=rgba(ink,Math.min(.3,.06*c.n));g.beginPath();g.moveTo(pa.x,pa.y);g.lineTo(pb.x,pb.y);g.stroke();
+    }
+    for(const ty of SND){
+      const p=pos(ty),imp=typeImp(ty,ts),r=2.5+8*imp,rec=ty.n>=3&&ty.reg>=.5;
+      ty.flash*=Math.pow(.15,dt);
+      g.fillStyle=rgba(rec?[236,120,158]:ink,rec?.55:.28);g.beginPath();g.arc(p.x,p.y,r,0,6.283);g.fill();
+      if(ty.per){                                                                // anillo punteado: se repite con regularidad
+        if(g.setLineDash)g.setLineDash([2,3]);
+        g.strokeStyle=rgba([236,120,158],.5);g.beginPath();g.arc(p.x,p.y,r+4,0,6.283);g.stroke();
+        if(g.setLineDash)g.setLineDash([]);
+      }
+      if(ty.flash>.03){g.strokeStyle=rgba(rec?[236,120,158]:ink,ty.flash*.7);g.beginPath();g.arc(p.x,p.y,r+(1-ty.flash)*18,0,6.283);g.stroke()}   // acaba de sonar
+    }
+    // ritmo recurrente (los 16 pasos del compás) con el cursor de lo que suena ahora
+    const gx=w-250,gy=36,cw=13;
+    txtAt('RITMO DEL LUGAR',gx,22,.3,ink);
+    const cur=on?(((Math.floor((ac.currentTime-PIECE.t0)/PIECE.step))%16)+16)%16:-1;
+    for(let s2=0;s2<16;s2++){
+      let str=0;for(const ty of SND){const p=ty.pat[s2];if(p)str=Math.max(str,Math.min(1,p.conf/4)*Math.min(1,p.vel+.25))}
+      g.fillStyle=str>0?rgba([236,120,158],.15+.7*str):rgba(ink,.08);g.fillRect(gx+s2*cw,gy,cw-2,10);
+      if(s2===cur){g.strokeStyle=rgba(ink,.7);g.strokeRect(gx+s2*cw-1,gy-2,cw,14)}
+    }
+    // motivo que se está desarrollando (notas y ritmo) y cómo se transforma
+    const mm=FORM.melMot,age=mm?(ts-FORM.melT)/7000:1;
+    if(mm&&age<1){
+      const dm=Math.min(...mm.degs),dM=Math.max(...mm.degs),span=Math.max(16,mm.steps[mm.steps.length-1]+1),mx=200/span;
+      const my=d=>gy+58-((d-dm)/Math.max(1,dM-dm))*34;
+      g.strokeStyle=rgba(ROLE_COL.mel,.35*(1-age));g.beginPath();
+      mm.steps.forEach((s2,i)=>{const px=gx+s2*mx+3,py=my(mm.degs[i]);if(i)g.lineTo(px,py);else g.moveTo(px,py)});g.stroke();
+      mm.steps.forEach((s2,i)=>{g.fillStyle=rgba(ROLE_COL.mel,.9*(1-age));g.beginPath();g.arc(gx+s2*mx+3,my(mm.degs[i]),3,0,6.283);g.fill()});
+      txtAt((OP_ES[mm.op]||mm.op)+' · motivo de '+mm.src+(mm.gen?' (variación '+mm.gen+')':''),gx,gy+72,.55*(1-age),ink);
+    }
+  }
+  g.restore();
+}
+
+/* ---------- controles (aparecen al mover el mouse) ---------- */
+let idleT;
+function wake(){
+  document.body.classList.add('active');
+  clearTimeout(idleT);
+  idleT=setTimeout(()=>document.body.classList.remove('active'),3200);
+}
+['mousemove','touchstart','keydown'].forEach(e=>addEventListener(e,wake,{passive:true}));
+
+const stamp=()=>{
+  const d=new Date(),p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+};
+function download(blob,name){
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+const fmt=s=>String(Math.floor(s/60)).padStart(2,'0')+':'+String(Math.floor(s%60)).padStart(2,'0');
+$('img').onclick=()=>{
+  const c=document.createElement('canvas'),pad=Math.round(64*dpr);
+  c.width=cv.width;c.height=cv.height+pad;
+  const x=c.getContext('2d');
+  x.fillStyle=`rgb(${S.bg})`;x.fillRect(0,0,c.width,c.height);
+  x.drawImage(cv,0,0);
+  const lum=(.299*S.bg[0]+.587*S.bg[1]+.114*S.bg[2])/255;
+  x.fillStyle=lum<.5?'#efeaf5':'#2b2730';
+  x.font=`${15*dpr}px Inter, system-ui, sans-serif`;
+  x.fillText(`${new Date().toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'})} · ${clockStr()} · escala ${mode.n} · ${Math.round(SEQ.bpm)} bpm`,24*dpr,cv.height+38*dpr);
+  c.toBlob(b=>download(b,'retrato-'+stamp()+'.png'));
+};
+$('log').onclick=()=>{
+  const dur=(performance.now()-S.t0)/1000;
+  const L=[
+    'TRADUCTOR DE ESPACIOS — REGISTRO',
+    'Lugar: (escríbelo aquí)',
+    'Fecha: '+new Date().toLocaleString('es-CO'),
+    'Duración: '+fmt(dur),
+    'Clima: '+(S.weather.real?S.weather.label:'no se usa'),
+    'Escala final: '+mode.n,
+    'Tempo final: '+Math.round(SEQ.bpm)+' bpm',
+    'Frases que la orquesta respondió: '+S.stats.ans,
+    'Toques secos (pizzicato): '+S.stats.tap,
+    'Aplausos y golpes agudos (caja y cuerdas): '+S.stats.clap,
+    'Golpes graves (timbales y contrabajo): '+S.stats.thud,
+    'Notas seguidas de voz o silbido: '+S.stats.voice,
+    'Cambios de acorde: '+S.stats.chords,
+    'Silencio promedio: '+Math.round(S.silTotal/Math.max(1,S.frames)*100)+'%',
+    '',
+    'DECISIONES DEL AGENTE',
+    ...S.log.map(l=>`[${fmt(l.t)}] ${l.text}`),
+    '',
+    'No se guardó audio del lugar. Solo se midieron volumen y frecuencias.'
+  ];
+  download(new Blob([L.join('\n')],{type:'text/plain'}),'registro-'+stamp()+'.txt');
+};
+
+let rec,recChunks=[],recDest;
+function recStart(){
+  rec=new MediaRecorder(recDest.stream);recChunks=[];
+  rec.ondataavailable=e=>{if(e.data.size)recChunks.push(e.data)};
+  rec.start(1000);
+}
+function recGate(on){ // solo se graba mientras hay música: la canción no trae silencios
+  if(!rec)return;
+  try{if(on&&rec.state==='paused')rec.resume();else if(!on&&rec.state==='recording')rec.pause()}catch(e){}
+}
+function wav(buf){
+  const ch=buf.numberOfChannels,len=buf.length,sr=buf.sampleRate,n=len*ch*2,v=new DataView(new ArrayBuffer(44+n));
+  const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  ws(0,'RIFF');v.setUint32(4,36+n,true);ws(8,'WAVE');ws(12,'fmt ');v.setUint32(16,16,true);
+  v.setUint16(20,1,true);v.setUint16(22,ch,true);v.setUint32(24,sr,true);v.setUint32(28,sr*ch*2,true);
+  v.setUint16(32,ch*2,true);v.setUint16(34,16,true);ws(36,'data');v.setUint32(40,n,true);
+  const d=[];for(let c=0;c<ch;c++)d.push(buf.getChannelData(c));
+  let o=44;
+  for(let i=0;i<len;i++)for(let c=0;c<ch;c++){const s=clamp(d[c][i],-1,1);v.setInt16(o,s<0?s*32768:s*32767,true);o+=2}
+  return new Blob([v],{type:'audio/wav'});
+}
+$('mus').onclick=()=>{
+  if(!rec||rec.state==='inactive')return;
+  const r=rec;
+  r.onstop=async()=>{
+    const blob=new Blob(recChunks,{type:r.mimeType});
+    recStart();
+    try{
+      const buf=await ac.decodeAudioData(await blob.arrayBuffer());
+      download(wav(buf),'musica-'+stamp()+'.wav');
+    }catch(e){download(blob,'musica-'+stamp()+'.webm')}
+  };
+  r.stop();
+};
+$('pause').onclick=()=>{
+  S.paused=!S.paused;
+  $('pause').textContent=S.paused?'seguir':'pausa';
+  S.paused?ac.suspend():ac.resume();
+};
+$('sens').oninput=e=>{S.sens=+e.target.value};
+
+$('go').onclick=()=>start().catch(e=>{
+  $('err').textContent='No pude usar el micrófono. Revisa el permiso en el candado junto a la dirección y vuelve a intentar.';
+});
+setTheme();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
